@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ExtractMint HyperFrames Demo</title>
+    <style>
+      :root {
+        color: #fffdf7;
+        background: #102029;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      .frame {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 18% 18%, rgba(18, 185, 129, 0.32), transparent 28%),
+          radial-gradient(circle at 84% 72%, rgba(216, 139, 38, 0.28), transparent 24%),
+          linear-gradient(135deg, #102029, #173d38 58%, #f7f1e6);
+        position: relative;
+      }
+
+      .copy {
+        position: absolute;
+        left: 82px;
+        top: 82px;
+        width: 760px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-size: 34px;
+        font-weight: 850;
+      }
+
+      .mark {
+        display: grid;
+        width: 64px;
+        height: 64px;
+        place-items: center;
+        border-radius: 18px;
+        background: #b7ffe4;
+        color: #102029;
+      }
+
+      h1 {
+        margin: 96px 0 0;
+        font-size: 92px;
+        line-height: 0.92;
+        letter-spacing: 0;
+      }
+
+      p {
+        width: 620px;
+        margin: 34px 0 0;
+        color: rgba(255, 253, 247, 0.78);
+        font-size: 30px;
+        line-height: 1.35;
+      }
+
+      .demo {
+        position: absolute;
+        right: 82px;
+        top: 126px;
+        display: grid;
+        grid-template-columns: 420px 110px 420px;
+        gap: 28px;
+        align-items: center;
+      }
+
+      .doc,
+      .sheet {
+        height: 540px;
+        border-radius: 34px;
+        background: #fffdf7;
+        box-shadow: 0 42px 90px rgba(0, 0, 0, 0.28);
+      }
+
+      .doc {
+        padding: 44px;
+      }
+
+      .line {
+        height: 18px;
+        margin-bottom: 34px;
+        border-radius: 999px;
+        background: #e2e8df;
+      }
+
+      .line:nth-child(1) {
+        width: 52%;
+        background: rgba(18, 185, 129, 0.64);
+      }
+
+      .line:nth-child(2) {
+        width: 88%;
+      }
+
+      .line:nth-child(3) {
+        width: 72%;
+      }
+
+      .line:nth-child(4) {
+        width: 46%;
+        background: rgba(216, 139, 38, 0.44);
+      }
+
+      .arrow {
+        display: grid;
+        width: 110px;
+        height: 110px;
+        place-items: center;
+        border-radius: 999px;
+        background: #b7ffe4;
+        color: #102029;
+        font-size: 52px;
+        font-weight: 900;
+      }
+
+      .sheet {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 2px;
+        padding: 2px;
+        overflow: hidden;
+      }
+
+      .cell {
+        background: #edf1ea;
+      }
+
+      .cell:nth-child(5n),
+      .cell:nth-child(8),
+      .cell:nth-child(14),
+      .cell:nth-child(21) {
+        background: #b7ffe4;
+      }
+
+      .caption {
+        position: absolute;
+        left: 82px;
+        right: 82px;
+        bottom: 76px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 22px;
+      }
+
+      .step {
+        padding: 26px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .step strong {
+        display: block;
+        margin-bottom: 8px;
+        color: #b7ffe4;
+        font-size: 18px;
+      }
+
+      .step span {
+        font-size: 28px;
+        font-weight: 800;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="frame" data-hyperframes-duration="6" data-hyperframes-fps="30">
+      <section class="copy">
+        <div class="brand"><span class="mark">E</span> ExtractMint</div>
+        <h1>Convert documents into clean business files.</h1>
+        <p>Upload statements, receipts, invoices, scans, or spreadsheets. Export Excel, DOCX, CSV, and PDF.</p>
+      </section>
+      <section class="demo" aria-label="Document to spreadsheet animation">
+        <div class="doc">
+          <div class="line"></div>
+          <div class="line"></div>
+          <div class="line"></div>
+          <div class="line"></div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="sheet">
+          <script>
+            document.write(Array.from({ length: 40 }, () => '<span class="cell"></span>').join(''))
+          </script>
+        </div>
+      </section>
+      <section class="caption">
+        <div class="step"><strong>01</strong><span>Upload</span></div>
+        <div class="step"><strong>02</strong><span>Extract</span></div>
+        <div class="step"><strong>03</strong><span>Export</span></div>
+      </section>
+    </main>
+  </body>
+</html>
