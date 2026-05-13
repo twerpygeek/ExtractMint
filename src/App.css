@@ -159,6 +159,10 @@ h1 {
   letter-spacing: 0;
 }
 
+.animated-headline span {
+  display: block;
+}
+
 h2 {
   margin-bottom: 0;
   font-size: clamp(32px, 4.5vw, 56px);
@@ -239,6 +243,58 @@ h3 {
     linear-gradient(135deg, rgba(18, 185, 129, 0.12), rgba(49, 95, 218, 0.12)),
     radial-gradient(circle at 30% 30%, rgba(216, 139, 38, 0.2), transparent 34%);
   filter: blur(14px);
+}
+
+.scan-path {
+  position: absolute;
+  z-index: 1;
+  top: 74px;
+  bottom: 78px;
+  width: 120px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(183, 255, 228, 0.42),
+    rgba(49, 95, 218, 0.16),
+    transparent
+  );
+  filter: blur(4px);
+  pointer-events: none;
+}
+
+.data-chip {
+  position: absolute;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(16, 32, 41, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #12352f;
+  font-size: 13px;
+  font-weight: 820;
+  box-shadow: 0 16px 42px rgba(42, 56, 64, 0.13);
+  backdrop-filter: blur(18px);
+}
+
+.chip-pdf {
+  top: 120px;
+  right: 54px;
+}
+
+.chip-excel {
+  bottom: 116px;
+  left: 18px;
+}
+
+.chip-balance {
+  right: 6px;
+  bottom: 188px;
+  color: var(--mint-dark);
 }
 
 .document-stack {
@@ -353,6 +409,18 @@ h3 {
     border-color 180ms ease,
     transform 180ms ease,
     background 180ms ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.dropzone::before {
+  content: '';
+  position: absolute;
+  inset: 18px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, transparent, rgba(18, 185, 129, 0.12), transparent);
+  transform: translateX(-120%);
+  animation: dropShimmer 4.2s ease-in-out infinite;
 }
 
 .dropzone input {
@@ -376,16 +444,22 @@ h3 {
   border-radius: 18px;
   background: #102029;
   color: #caffdf;
+  position: relative;
+  z-index: 1;
 }
 
 .dropzone strong {
   display: block;
   font-size: 24px;
+  position: relative;
+  z-index: 1;
 }
 
 .dropzone small {
   margin-top: 5px;
   color: #687782;
+  position: relative;
+  z-index: 1;
 }
 
 .progress-panel {
@@ -510,6 +584,14 @@ footer {
 .summary-band div {
   padding: 24px;
   background: rgba(255, 255, 255, 0.72);
+  transition:
+    transform 180ms ease,
+    background 180ms ease;
+}
+
+.summary-band div:hover {
+  transform: translateY(-3px);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .summary-band strong {
@@ -704,6 +786,14 @@ tbody tr:last-child td {
 
 .workflow-grid article {
   padding: 24px;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.workflow-grid article:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 26px 58px rgba(42, 53, 42, 0.12);
 }
 
 .workflow-grid h3 {
@@ -763,6 +853,7 @@ tbody tr:last-child td {
   margin-bottom: 16px;
   border-radius: 999px;
   background: #dfe7df;
+  animation: linePulse 3s ease-in-out infinite;
 }
 
 .motion-doc span:nth-child(1) {
@@ -793,12 +884,21 @@ tbody tr:last-child td {
 
 .motion-sheet span {
   background: #eef2ec;
+  animation: cellPulse 3.8s ease-in-out infinite;
 }
 
 .motion-sheet span:nth-child(4n),
 .motion-sheet span:nth-child(5),
 .motion-sheet span:nth-child(10) {
   background: rgba(18, 185, 129, 0.38);
+}
+
+.motion-sheet span:nth-child(3n) {
+  animation-delay: 0.2s;
+}
+
+.motion-sheet span:nth-child(4n) {
+  animation-delay: 0.45s;
 }
 
 .trust-section {
@@ -909,5 +1009,43 @@ footer {
 
   .preview-header {
     flex-direction: column;
+  }
+
+  .data-chip {
+    display: none;
+  }
+}
+
+@keyframes dropShimmer {
+  0%,
+  48% {
+    transform: translateX(-120%);
+  }
+  82%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes linePulse {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: scaleX(0.96);
+    transform-origin: left;
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes cellPulse {
+  0%,
+  100% {
+    opacity: 0.76;
+  }
+  50% {
+    opacity: 1;
   }
 }

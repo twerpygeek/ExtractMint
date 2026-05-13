@@ -167,14 +167,28 @@ function App() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            ExtractMint.com checked via RDAP, unregistered today
+            Bank statements to Excel, right in your browser
           </motion.p>
           <motion.h1
+            className="animated-headline"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
           >
-            Turn messy financial documents into clean working files.
+            <motion.span
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08 }}
+            >
+              Convert bank statements
+            </motion.span>
+            <motion.span
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18 }}
+            >
+              into clean Excel.
+            </motion.span>
           </motion.h1>
           <motion.p
             className="hero-lede"
@@ -182,8 +196,9 @@ function App() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            A startup-style replacement for old bank statement converters, built
-            for statements, receipts, invoices, scans, and office documents.
+            Upload a PDF statement, receipt, or invoice. ExtractMint reads the
+            table, keeps the balances intact, and exports Excel, CSV, DOCX, or
+            PDF without sending files to a server.
           </motion.p>
           <motion.div
             className="hero-actions"
@@ -217,6 +232,36 @@ function App() {
           transition={{ delay: 0.12, duration: 0.55 }}
         >
           <div className="stage-glow" />
+          <motion.div
+            className="scan-path"
+            animate={{ x: ['-18%', '118%'], opacity: [0, 1, 1, 0] }}
+            transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+            aria-hidden="true"
+          />
+          <motion.div
+            className="data-chip chip-pdf"
+            animate={{ y: [0, -12, 0], rotate: [-4, 3, -4] }}
+            transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+            aria-hidden="true"
+          >
+            PDF
+          </motion.div>
+          <motion.div
+            className="data-chip chip-excel"
+            animate={{ y: [0, 10, 0], rotate: [5, -2, 5] }}
+            transition={{ duration: 4.8, repeat: Infinity, ease: 'easeInOut' }}
+            aria-hidden="true"
+          >
+            XLSX
+          </motion.div>
+          <motion.div
+            className="data-chip chip-balance"
+            animate={{ y: [0, -9, 0], scale: [1, 1.04, 1] }}
+            transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
+            aria-hidden="true"
+          >
+            RM 3,669.19
+          </motion.div>
           <div className="document-stack" aria-hidden="true">
             <motion.div
               className="paper paper-left"
@@ -229,7 +274,12 @@ function App() {
               transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
             />
           </div>
-          <div className="converter-card" id="converter">
+          <motion.div
+            className="converter-card"
+            id="converter"
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          >
             <div className="converter-toolbar">
               <span>Live extraction desk</span>
               <div>
@@ -256,9 +306,13 @@ function App() {
                   if (event.target.files) void processFiles(event.target.files)
                 }}
               />
-              <span className="drop-icon">
+              <motion.span
+                className="drop-icon"
+                animate={{ scale: [1, 1.08, 1], rotate: [0, -2, 0] }}
+                transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+              >
                 <Cloud size={28} />
-              </span>
+              </motion.span>
               <strong>Drop documents here</strong>
               <small>or click to choose files from your desktop</small>
             </label>
@@ -304,7 +358,7 @@ function App() {
                 CSV
               </button>
             </div>
-          </div>
+          </motion.div>
         </motion.div>
       </section>
 
