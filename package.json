@@ -11,7 +11,9 @@
     "deploy:static": "npm run build",
     "remotion:studio": "remotion studio src/remotion/index.ts",
     "remotion:render": "remotion render src/remotion/index.ts ExtractMintExplainer out/extractmint-explainer.mp4",
-    "hyperframes:source": "open hyperframes/extractmint-demo.html"
+    "remotion:onboarding": "remotion render src/remotion/index.ts ExtractMintOnboarding out/extractmint-onboarding.mp4",
+    "hyperframes:source": "open hyperframes/extractmint-demo.html",
+    "hyperframes:onboarding": "open hyperframes/extractmint-onboarding.html"
   },
   "dependencies": {
     "@remotion/player": "^4.0.460",

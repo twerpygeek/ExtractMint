@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ExtractMint Onboarding Video</title>
+    <style>
+      :root {
+        --ink: #071923;
+        --navy: #0b2530;
+        --mint: #35f2b0;
+        --mint-dark: #087a65;
+        --lime: #d8ff6a;
+        --coral: #ff7a59;
+        --paper: #fffdf7;
+        --cloud: #eff7ee;
+        color: var(--ink);
+        background: var(--paper);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      .frame {
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        padding: 58px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 5% 22%, rgba(53, 242, 176, 0.24), transparent 28%),
+          radial-gradient(circle at 112% 14%, rgba(255, 122, 89, 0.18), transparent 24%),
+          radial-gradient(circle at 112% 84%, rgba(216, 255, 106, 0.18), transparent 28%),
+          linear-gradient(155deg, var(--paper), #eaf8ee 42%, #dff7ef);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .brand-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 31px;
+        font-weight: 930;
+      }
+
+      .mark {
+        display: grid;
+        width: 60px;
+        height: 60px;
+        place-items: center;
+        border-radius: 15px;
+        background: var(--paper);
+        box-shadow:
+          inset 0 0 0 2px rgba(7, 25, 35, 0.12),
+          0 16px 38px rgba(7, 25, 35, 0.12);
+      }
+
+      .privacy {
+        padding: 12px 18px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        color: #4b6169;
+        font-size: 19px;
+        font-weight: 800;
+        box-shadow: 0 12px 28px rgba(7, 25, 35, 0.08);
+      }
+
+      .hero {
+        margin-top: 54px;
+        animation: enter-up 0.9s ease-out both;
+      }
+
+      .tag {
+        display: inline-flex;
+        padding: 12px 18px;
+        border-radius: 999px;
+        background: var(--navy);
+        color: var(--mint);
+        font-size: 24px;
+        font-weight: 900;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        box-shadow: 0 18px 44px rgba(7, 25, 35, 0.2);
+      }
+
+      h1 {
+        max-width: 900px;
+        margin: 26px 0 0;
+        font-size: 106px;
+        line-height: 0.9;
+        letter-spacing: 0;
+      }
+
+      .hero p {
+        max-width: 800px;
+        margin: 28px 0 0;
+        color: #49616a;
+        font-size: 35px;
+        line-height: 1.24;
+        font-weight: 620;
+      }
+
+      .desk {
+        position: absolute;
+        left: 58px;
+        right: 58px;
+        top: 700px;
+        height: 720px;
+        border-radius: 42px;
+        background: var(--navy);
+        box-shadow: 0 48px 120px rgba(7, 25, 35, 0.32);
+        overflow: hidden;
+        animation: enter-up 0.9s 0.18s ease-out both;
+      }
+
+      .desk::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(110deg, rgba(53, 242, 176, 0.16), transparent 34%, rgba(246, 200, 95, 0.15));
+      }
+
+      .scan {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: -14%;
+        width: 130px;
+        background: linear-gradient(90deg, transparent, rgba(53, 242, 176, 0.36), transparent);
+        animation: scan 3s 4.6s ease-in-out infinite;
+      }
+
+      .drop {
+        position: absolute;
+        left: 56px;
+        right: 56px;
+        top: 56px;
+        height: 230px;
+        border-radius: 30px;
+        background: rgba(255, 253, 247, 0.96);
+        box-shadow: 0 28px 70px rgba(0, 0, 0, 0.28);
+        overflow: hidden;
+        animation: lift-drop 6s ease-in-out infinite;
+      }
+
+      .drop::before {
+        content: "";
+        position: absolute;
+        inset: 18px;
+        border: 3px dashed rgba(8, 122, 101, 0.24);
+        border-radius: 22px;
+      }
+
+      .drop-title {
+        position: absolute;
+        left: 36px;
+        top: 36px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+
+      .upload-icon {
+        display: grid;
+        width: 66px;
+        height: 66px;
+        place-items: center;
+        border-radius: 18px;
+        background: var(--navy);
+        color: var(--mint);
+      }
+
+      .drop-title strong {
+        display: block;
+        font-size: 31px;
+        font-weight: 930;
+      }
+
+      .drop-title span {
+        display: block;
+        margin-top: 6px;
+        color: #64767d;
+        font-size: 21px;
+        font-weight: 650;
+      }
+
+      .progress {
+        position: absolute;
+        left: 36px;
+        right: 36px;
+        bottom: 34px;
+        height: 60px;
+        border-radius: 18px;
+        background: #eef6ee;
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, var(--mint), var(--lime));
+        animation: fill 3s ease-in-out infinite;
+      }
+
+      .progress-label {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 18px;
+        font-size: 20px;
+        font-weight: 850;
+      }
+
+      .workbook {
+        position: absolute;
+        left: 56px;
+        right: 56px;
+        bottom: 148px;
+        border-radius: 28px;
+        background: var(--paper);
+        color: var(--ink);
+        overflow: hidden;
+        box-shadow: 0 28px 74px rgba(0, 0, 0, 0.26);
+      }
+
+      .workbook-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 24px 28px;
+        border-bottom: 1px solid #dfe8de;
+      }
+
+      .eyebrow {
+        color: var(--mint-dark);
+        font-size: 17px;
+        font-weight: 930;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+      }
+
+      .workbook-title {
+        margin-top: 7px;
+        font-size: 31px;
+        font-weight: 930;
+      }
+
+      .match {
+        padding: 12px 16px;
+        border-radius: 999px;
+        background: #e8fff4;
+        color: var(--mint-dark);
+        font-size: 18px;
+        font-weight: 930;
+      }
+
+      .sheet-head,
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1.25fr 0.95fr 0.82fr 0.95fr;
+      }
+
+      .sheet-head {
+        color: var(--mint-dark);
+        background: #eaf7ef;
+        font-size: 17px;
+        font-weight: 930;
+      }
+
+      .sheet-head span,
+      .row span {
+        padding: 18px 20px;
+        border-right: 1px solid #dfe8de;
+        border-bottom: 1px solid #dfe8de;
+      }
+
+      .row {
+        font-size: 18px;
+        font-weight: 700;
+        animation: row-highlight 3.4s ease-in-out infinite;
+      }
+
+      .row:nth-child(4) {
+        animation-delay: 0.3s;
+      }
+
+      .row:nth-child(5) {
+        animation-delay: 0.6s;
+      }
+
+      .row span:nth-child(n + 3) {
+        text-align: right;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .exports {
+        position: absolute;
+        left: 56px;
+        right: 56px;
+        bottom: 50px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+
+      .export {
+        display: grid;
+        min-height: 78px;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.12);
+        color: var(--paper);
+        font-size: 22px;
+        font-weight: 930;
+      }
+
+      .export:first-child {
+        background: var(--mint);
+        color: var(--ink);
+        box-shadow: 0 18px 42px rgba(53, 242, 176, 0.28);
+      }
+
+      .steps {
+        position: absolute;
+        left: 58px;
+        right: 58px;
+        bottom: 256px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+      }
+
+      .step {
+        min-height: 188px;
+        padding: 22px;
+        border: 2px solid rgba(7, 25, 35, 0.07);
+        border-radius: 26px;
+        background: rgba(255, 255, 255, 0.62);
+      }
+
+      .step:nth-child(1) {
+        animation: active-step 8s ease-in-out infinite;
+      }
+
+      .step:nth-child(2) {
+        animation: active-step 8s 2s ease-in-out infinite;
+      }
+
+      .step:nth-child(3) {
+        animation: active-step 8s 4s ease-in-out infinite;
+      }
+
+      .step:nth-child(4) {
+        animation: active-step 8s 6s ease-in-out infinite;
+      }
+
+      .step-num {
+        color: var(--mint-dark);
+        font-size: 18px;
+        font-weight: 930;
+        margin-bottom: 10px;
+      }
+
+      .step-title {
+        font-size: 27px;
+        font-weight: 930;
+        line-height: 1;
+      }
+
+      .step-copy {
+        margin-top: 12px;
+        color: #52636a;
+        font-size: 17px;
+        font-weight: 650;
+        line-height: 1.3;
+      }
+
+      .cta {
+        position: absolute;
+        left: 58px;
+        right: 58px;
+        bottom: 58px;
+        min-height: 154px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 20px;
+        padding: 30px 34px;
+        border-radius: 34px;
+        background: var(--navy);
+        color: var(--paper);
+        box-shadow: 0 34px 90px rgba(7, 25, 35, 0.26);
+      }
+
+      .cta-label {
+        color: var(--mint);
+        font-size: 20px;
+        font-weight: 930;
+        letter-spacing: 1.2px;
+      }
+
+      .cta-title {
+        margin-top: 7px;
+        font-size: 37px;
+        font-weight: 930;
+      }
+
+      .url {
+        padding: 20px 24px;
+        border-radius: 22px;
+        background: var(--mint);
+        color: var(--ink);
+        font-size: 25px;
+        font-weight: 930;
+      }
+
+      @keyframes enter-up {
+        from {
+          opacity: 0;
+          transform: translateY(54px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes scan {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        50% {
+          transform: translateX(1120px);
+        }
+      }
+
+      @keyframes lift-drop {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        55% {
+          transform: translateY(-26px);
+        }
+      }
+
+      @keyframes fill {
+        0% {
+          width: 0%;
+        }
+        55%,
+        100% {
+          width: 100%;
+        }
+      }
+
+      @keyframes row-highlight {
+        0%,
+        100% {
+          background: var(--paper);
+        }
+        50% {
+          background: rgba(216, 255, 106, 0.34);
+        }
+      }
+
+      @keyframes active-step {
+        0%,
+        22% {
+          border-color: var(--mint);
+          background: var(--paper);
+          box-shadow: 0 22px 54px rgba(7, 25, 35, 0.18);
+          transform: scale(1.035);
+        }
+        28%,
+        100% {
+          border-color: rgba(7, 25, 35, 0.07);
+          background: rgba(255, 255, 255, 0.62);
+          box-shadow: none;
+          transform: scale(1);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="frame" data-hyperframes-duration="15" data-hyperframes-fps="30">
+      <header class="brand">
+        <div class="brand-left">
+          <span class="mark" aria-hidden="true">
+            <svg width="35" height="35" viewBox="0 0 32 32">
+              <path
+                d="M9 4.75h10.4L24.5 10v17.25H9z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+              <path d="M19.5 5v5.5H25" fill="none" stroke="currentColor" stroke-width="2" />
+              <path
+                d="M12.5 14.5h8M12.5 18.5h8M12.5 22.5h8"
+                stroke="currentColor"
+                stroke-width="2"
+              />
+              <path d="M15.5 13v11" stroke="currentColor" stroke-width="1.5" opacity="0.72" />
+            </svg>
+          </span>
+          ExtractMint
+        </div>
+        <div class="privacy">Works in your browser</div>
+      </header>
+
+      <section class="hero">
+        <div class="tag">Bank statements to Excel</div>
+        <h1>Convert messy docs into clean working files.</h1>
+        <p>
+          ExtractMint reads the table, keeps the numbers in place, and gives you
+          spreadsheet-ready exports.
+        </p>
+      </section>
+
+      <section class="desk" aria-label="Animated ExtractMint onboarding flow">
+        <div class="scan"></div>
+        <div class="drop">
+          <div class="drop-title">
+            <span class="upload-icon">
+              <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+                <path
+                  d="M17 23V9m0 0-6 6m6-6 6 6"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M8 22v3.5A3.5 3.5 0 0 0 11.5 29h11A3.5 3.5 0 0 0 26 25.5V22"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </span>
+            <span>
+              <strong>Drop documents here</strong>
+              <span>PDF statement, receipt, invoice, or scan</span>
+            </span>
+          </div>
+          <div class="progress">
+            <div class="progress-fill"></div>
+            <div class="progress-label">
+              <span>eStatement20250612.pdf</span>
+              <span>100%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="workbook">
+          <div class="workbook-head">
+            <div>
+              <div class="eyebrow">Extracted Excel workbook</div>
+              <div class="workbook-title">51 transaction rows detected</div>
+            </div>
+            <div class="match">98% match</div>
+          </div>
+          <div class="sheet-head">
+            <span>Date</span>
+            <span>Description</span>
+            <span>Withdrawal</span>
+            <span>Deposit</span>
+            <span>Balance</span>
+          </div>
+          <div class="row">
+            <span>13/03/2025</span>
+            <span>POS DEBIT</span>
+            <span>8.18</span>
+            <span></span>
+            <span>3,272.50</span>
+          </div>
+          <div class="row">
+            <span>17/03/2025</span>
+            <span>AUTOPAY CR</span>
+            <span></span>
+            <span>8.18</span>
+            <span>3,279.33</span>
+          </div>
+          <div class="row">
+            <span>24/03/2025</span>
+            <span>TR IBG</span>
+            <span>1,000.00</span>
+            <span></span>
+            <span>2,275.58</span>
+          </div>
+        </div>
+
+        <div class="exports">
+          <div class="export">Excel</div>
+          <div class="export">CSV</div>
+          <div class="export">Google Docs</div>
+          <div class="export">PDF</div>
+        </div>
+      </section>
+
+      <section class="steps" aria-label="How to use ExtractMint">
+        <article class="step">
+          <div class="step-num">01</div>
+          <div class="step-title">Upload</div>
+          <div class="step-copy">Drop in a bank statement or receipt.</div>
+        </article>
+        <article class="step">
+          <div class="step-num">02</div>
+          <div class="step-title">Extract</div>
+          <div class="step-copy">Turn rows into clean spreadsheet columns.</div>
+        </article>
+        <article class="step">
+          <div class="step-num">03</div>
+          <div class="step-title">Review</div>
+          <div class="step-copy">Check balances and confidence signals.</div>
+        </article>
+        <article class="step">
+          <div class="step-num">04</div>
+          <div class="step-title">Export</div>
+          <div class="step-copy">Download Excel, CSV, DOCX, or PDF.</div>
+        </article>
+      </section>
+
+      <section class="cta">
+        <div>
+          <div class="cta-label">READY TO TRY IT?</div>
+          <div class="cta-title">Upload a statement. Download clean Excel.</div>
+        </div>
+        <div class="url">extractmint.netlify.app</div>
+      </section>
+    </main>
+  </body>
+</html>

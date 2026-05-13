@@ -8,7 +8,8 @@ Elegant static SaaS prototype for converting bank statements, receipts, scans, P
 - Client-side extraction for PDFs, images via OCR, DOCX, XLSX/XLS, CSV, and TXT.
 - Export buttons for Excel `.xlsx`, Google Docs-ready `.docx`, `.pdf`, and `.csv`.
 - Remotion composition for a product explainer.
-- HyperFrames-ready HTML source for a website-to-video walkthrough.
+- Remotion vertical onboarding promo for launch and social posts.
+- HyperFrames-ready HTML sources for a website-to-video walkthrough and onboarding promo.
 - GoDaddy shared-hosting deployment notes.
 
 ## Local commands
@@ -25,10 +26,12 @@ npm run preview
 ```bash
 npm run remotion:studio
 npm run remotion:render
+npm run remotion:onboarding
 npm run hyperframes:source
+npm run hyperframes:onboarding
 ```
 
-The HyperFrames source lives at `hyperframes/extractmint-demo.html`.
+The rendered onboarding video is written to `out/extractmint-onboarding.mp4`. The HyperFrames sources live at `hyperframes/extractmint-demo.html` and `hyperframes/extractmint-onboarding.html`.
 
 ## GoDaddy hosting
 
