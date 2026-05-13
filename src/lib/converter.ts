@@ -18,7 +18,11 @@ export type ExtractedRow = {
   date?: string
   description: string
   amount?: number
+  withdrawal?: number
+  deposit?: number
+  tax?: number
   balance?: number
+  reference?: string
   category: string
   confidence: number
   source: string
@@ -127,6 +131,10 @@ export async function createExcelBlob(result: ConversionResult) {
   rows.columns = [
     { header: 'Date', key: 'date', width: 18 },
     { header: 'Description', key: 'description', width: 46 },
+    { header: 'Reference', key: 'reference', width: 18 },
+    { header: 'Withdrawal', key: 'withdrawal', width: 16 },
+    { header: 'Deposit', key: 'deposit', width: 16 },
+    { header: 'Tax', key: 'tax', width: 12 },
     { header: 'Amount', key: 'amount', width: 16 },
     { header: 'Balance', key: 'balance', width: 16 },
     { header: 'Category', key: 'category', width: 18 },
@@ -137,6 +145,10 @@ export async function createExcelBlob(result: ConversionResult) {
     rows.addRow({
       date: row.date ?? '',
       description: row.description,
+      reference: row.reference ?? '',
+      withdrawal: row.withdrawal ?? '',
+      deposit: row.deposit ?? '',
+      tax: row.tax ?? '',
       amount: row.amount ?? '',
       balance: row.balance ?? '',
       category: row.category,
@@ -157,10 +169,26 @@ export async function createExcelBlob(result: ConversionResult) {
 
 export function createCsvBlob(result: ConversionResult) {
   const rows = [
-    ['Date', 'Description', 'Amount', 'Balance', 'Category', 'Confidence', 'Source'],
+    [
+      'Date',
+      'Description',
+      'Reference',
+      'Withdrawal',
+      'Deposit',
+      'Tax',
+      'Amount',
+      'Balance',
+      'Category',
+      'Confidence',
+      'Source',
+    ],
     ...result.rows.map((row) => [
       row.date ?? '',
       row.description,
+      row.reference ?? '',
+      String(row.withdrawal ?? ''),
+      String(row.deposit ?? ''),
+      String(row.tax ?? ''),
       String(row.amount ?? ''),
       String(row.balance ?? ''),
       row.category,
@@ -193,7 +221,17 @@ export async function createDocxBlob(result: ConversionResult) {
   } = await import('docx')
   const tableRows = [
     new TableRow({
-      children: ['Date', 'Description', 'Amount', 'Balance', 'Type'].map(
+      children: [
+        'Date',
+        'Description',
+        'Reference',
+        'Withdrawal',
+        'Deposit',
+        'Tax',
+        'Amount',
+        'Balance',
+        'Type',
+      ].map(
         (label) =>
           new TableCell({
             children: [new Paragraph({ children: [new TextRun({ text: label, bold: true })] })],
@@ -206,6 +244,10 @@ export async function createDocxBlob(result: ConversionResult) {
           children: [
             row.date ?? '',
             row.description,
+            row.reference ?? '',
+            money(row.withdrawal),
+            money(row.deposit),
+            money(row.tax),
             money(row.amount),
             money(row.balance),
             row.category,
@@ -265,8 +307,9 @@ async function createPdfBlobAsync(result: ConversionResult) {
   pdf.setFont('helvetica', 'bold')
   pdf.text('Date', margin, y)
   pdf.text('Description', margin + 82, y)
-  pdf.text('Amount', margin + 350, y)
-  pdf.text('Balance', margin + 440, y)
+  pdf.text('Withdrawal', margin + 310, y)
+  pdf.text('Deposit', margin + 390, y)
+  pdf.text('Balance', margin + 470, y)
   y += 12
   pdf.line(margin, y, 552, y)
   y += 18
@@ -278,9 +321,10 @@ async function createPdfBlobAsync(result: ConversionResult) {
       y = margin
     }
     pdf.text(row.date ?? '-', margin, y)
-    pdf.text(pdf.splitTextToSize(row.description, 245), margin + 82, y)
-    pdf.text(money(row.amount), margin + 350, y)
-    pdf.text(money(row.balance), margin + 440, y)
+    pdf.text(pdf.splitTextToSize(row.description, 210), margin + 82, y)
+    pdf.text(money(row.withdrawal), margin + 310, y)
+    pdf.text(money(row.deposit), margin + 390, y)
+    pdf.text(money(row.balance), margin + 470, y)
     y += 24
   })
 
@@ -322,10 +366,7 @@ async function extractPdfText(file: File, onProgress: ProgressCallback) {
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber)
     const content = await page.getTextContent()
-    const text = content.items
-      .map((item) => ('str' in item ? item.str : ''))
-      .filter(Boolean)
-      .join(' ')
+    const text = formatPdfTextItems(content.items)
     chunks.push(`Page ${pageNumber}\n${text}`)
     onProgress({
       fileName: file.name,
@@ -379,19 +420,105 @@ async function extractWorkbookText(file: File) {
   return chunks.join('\n')
 }
 
+type PositionedText = {
+  str: string
+  x: number
+  y: number
+  width: number
+}
+
+function formatPdfTextItems(items: unknown[]) {
+  const positioned = items
+    .map(toPositionedText)
+    .filter((item): item is PositionedText => Boolean(item && item.str.trim()))
+    .sort((a, b) => b.y - a.y || a.x - b.x)
+  const lines: PositionedText[][] = []
+
+  positioned.forEach((item) => {
+    const line = lines.find((candidate) => Math.abs(candidate[0].y - item.y) <= 2.6)
+    if (line) {
+      line.push(item)
+    } else {
+      lines.push([item])
+    }
+  })
+
+  return lines
+    .sort((a, b) => b[0].y - a[0].y)
+    .map((line) => formatPdfLine(line.sort((a, b) => a.x - b.x)))
+    .filter(Boolean)
+    .join('\n')
+}
+
+function toPositionedText(item: unknown): PositionedText | undefined {
+  if (!item || typeof item !== 'object') return undefined
+  if (!('str' in item) || !('transform' in item)) return undefined
+
+  const source = item as { str: unknown; transform: unknown; width?: unknown }
+  if (typeof source.str !== 'string') return undefined
+  if (!Array.isArray(source.transform) || source.transform.length < 6) return undefined
+
+  const x = Number(source.transform[4])
+  const y = Number(source.transform[5])
+  const width = Number(source.width ?? 0)
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return undefined
+
+  return { str: source.str.trim(), x, y, width: Number.isFinite(width) ? width : 0 }
+}
+
+function formatPdfLine(line: PositionedText[]) {
+  const columns = ['', '', '', '', '', '', '']
+
+  line.forEach((item) => {
+    const columnIndex = columnForX(item.x)
+    columns[columnIndex] = [columns[columnIndex], item.str].filter(Boolean).join(' ')
+  })
+
+  const hasTableShape = columns.slice(2).some(Boolean) || (columns[0] && columns[1])
+  if (hasTableShape) {
+    return trimTrailingEmptyColumns(columns).join('\t')
+  }
+
+  if (columns[1] && !columns[0]) {
+    return `\t${columns[1]}`
+  }
+
+  return line.map((item) => item.str).join(' ')
+}
+
+function columnForX(x: number) {
+  if (x < 65) return 0
+  if (x < 240) return 1
+  if (x < 315) return 2
+  if (x < 390) return 3
+  if (x < 465) return 4
+  if (x < 500) return 5
+  return 6
+}
+
+function trimTrailingEmptyColumns(columns: string[]) {
+  const next = [...columns]
+  while (next.length > 1 && !next.at(-1)) next.pop()
+  return next
+}
+
 function parseRawText(rawText: string, fileName: string, fileType: string): ConversionResult {
   const normalized = rawText
     .replace(/\u00a0/g, ' ')
-    .replace(/[ \t]+/g, ' ')
+    .replace(/ {2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 
   const lines = normalized
-    .split(/\r?\n|(?<=\d{2})\s{2,}/)
-    .map((line) => line.trim())
-    .filter(Boolean)
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^ +| +$/g, ''))
+    .filter((line) => line.replace(/\t/g, '').trim())
 
-  const rows = lines.flatMap((line, index) => parseLine(line, index + 1))
+  const structuredRows = parseStatementTable(lines)
+  const rows =
+    structuredRows.length > 0
+      ? structuredRows
+      : lines.flatMap((line, index) => parseLine(line, index + 1))
   const fallbackRows = rows.length > 0 ? rows : buildFallbackRows(lines)
   const summary = summarize(lines, fallbackRows, fileName)
   const confidence = scoreConfidence(fileType, fallbackRows, normalized)
@@ -408,16 +535,17 @@ function parseRawText(rawText: string, fileName: string, fileType: string): Conv
 }
 
 function parseLine(line: string, lineNumber: number): ExtractedRow[] {
-  const date = line.match(datePattern)?.[0]
-  const amountMatches = line.match(amountPattern) ?? []
+  const flatLine = line.replace(/\t/g, ' ')
+  const date = flatLine.match(datePattern)?.[0]
+  const amountMatches = flatLine.match(amountPattern) ?? []
   const parsedAmounts = amountMatches.map(parseAmount).filter(isFinite)
 
-  if (!date && !looksLikeReceiptTotal(line)) return []
+  if (!date && !looksLikeReceiptTotal(flatLine)) return []
   if (parsedAmounts.length === 0) return []
 
   const amount = parsedAmounts.length > 1 ? parsedAmounts.at(-2) : parsedAmounts.at(-1)
   const balance = parsedAmounts.length > 1 ? parsedAmounts.at(-1) : undefined
-  const description = cleanDescription(line, date, amountMatches)
+  const description = cleanDescription(flatLine, date, amountMatches)
 
   return [
     {
@@ -425,11 +553,155 @@ function parseLine(line: string, lineNumber: number): ExtractedRow[] {
       description: description || line.slice(0, 90),
       amount,
       balance,
-      category: classifyLine(line),
+      category: classifyLine(flatLine),
       confidence: date ? 92 : 78,
       source: `Line ${lineNumber}`,
     },
   ]
+}
+
+function parseStatementTable(lines: string[]): ExtractedRow[] {
+  const hasStatementColumns = lines.some(
+    (line) =>
+      line.includes('\t') &&
+      /Withdrawal|Pengeluaran|Deposits|Deposit|Balance|Baki/i.test(line),
+  )
+  if (!hasStatementColumns) return []
+
+  const rows: ExtractedRow[] = []
+  let current: (ExtractedRow & { descriptionParts: string[] }) | undefined
+  let sourceLine = 0
+
+  const finishCurrent = () => {
+    if (!current) return
+    const { descriptionParts, ...row } = current
+    row.description = compactDescription(descriptionParts)
+    rows.push(row)
+    current = undefined
+  }
+
+  for (const line of lines) {
+    sourceLine += 1
+    const columns = splitStatementColumns(line)
+    const [dateColumn, descriptionColumn, referenceColumn, withdrawalColumn, depositColumn, taxColumn, balanceColumn] =
+      columns
+    const candidateDate = dateColumn.match(/^\d{1,2}\/\d{1,2}\/\d{4}/)?.[0]
+
+    if (isStatementNoise(line)) continue
+
+    if (/^OPENING BALANCE$/i.test(descriptionColumn) || /^CLOSING BALANCE/i.test(descriptionColumn)) {
+      finishCurrent()
+      const balance = parseMoneyCell(balanceColumn)
+      rows.push({
+        description: descriptionColumn,
+        balance,
+        category: 'Balance',
+        confidence: 96,
+        source: `Line ${sourceLine}`,
+      })
+      continue
+    }
+
+    if (candidateDate) {
+      finishCurrent()
+      const withdrawal = parseMoneyCell(withdrawalColumn)
+      const deposit = parseMoneyCell(depositColumn)
+      const tax = parseMoneyCell(taxColumn)
+      const balance = parseMoneyCell(balanceColumn)
+      const amount = deposit ?? (withdrawal !== undefined ? -withdrawal : undefined)
+      const initialDescription = dateColumn.replace(candidateDate, '').trim()
+      current = {
+        date: candidateDate,
+        description: initialDescription,
+        descriptionParts: [initialDescription, descriptionColumn],
+        reference: referenceColumn || undefined,
+        withdrawal,
+        deposit,
+        tax,
+        amount,
+        balance,
+        category: classifyStructuredRow(initialDescription, amount),
+        confidence: balance !== undefined && (amount !== undefined || tax !== undefined) ? 98 : 84,
+        source: `Line ${sourceLine}`,
+      }
+      continue
+    }
+
+    if (current) {
+      if (descriptionColumn && !isStatementNoise(descriptionColumn)) {
+        current.descriptionParts.push(descriptionColumn)
+      }
+      if (referenceColumn && !isStatementNoise(referenceColumn)) {
+        current.reference = current.reference
+          ? `${current.reference} ${referenceColumn}`.trim()
+          : referenceColumn
+      }
+    }
+  }
+
+  finishCurrent()
+  return rows
+}
+
+function splitStatementColumns(line: string) {
+  const columns = line.split('\t').map((column) => column.trim())
+  while (columns.length < 7) columns.push('')
+  return columns.slice(0, 7)
+}
+
+function isStatementNoise(line: string) {
+  const text = line.replace(/\t/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!text) return true
+  return (
+    /^Page \/|^Halaman$|^Page \d+ of \d+$/i.test(text) ||
+    /^Statement Date \/|^Tarikh Penyata$|^Should you have|^or call our CIMB/i.test(text) ||
+    /^PREF\/S\b|^CIMB Bank Berhad|^Statement of Account$/i.test(text) ||
+    /^Date Tarikh Description|^Date Tarikh$|^Date Description/i.test(text) ||
+    /^Tarikh Diskripsi|^Description Diskripsi|^Ref No|^No\. Rujukan$/i.test(text) ||
+    /^Withdrawal Pengeluaran|^Deposits Deposit|^Tax Cukai|^Balance Baki$/i.test(text) ||
+    /^\(RM\)|^\d{10,}\s+\d+\s+17-SSSSSSS/i.test(text) ||
+    /^17-SSSSSSS/i.test(text) ||
+    /^(Important Notice|Notis Penting|Effective 8 November|The Bank must be informed)/i.test(text) ||
+    /^(Summary of Your|Ringkasan|Points Earned|Mata Diperolehi|Points Redeemed|Mata Dilunaskan|Points Transferred|Mata Dipindahkan|Total Points Available|Jumlah Mata|Points Expiring|Mata Yang|Amount of Points Expiring)/i.test(
+      text,
+    ) ||
+    /^(Savings Account Transaction Details|Butir-butir Transaksi|Account No|No Akaun|AIR ASIA SAVERS ACCOUNT|Protected by PIDM)/i.test(
+      text,
+    ) ||
+    /^\*{3} End of Statement/i.test(text) ||
+    /^Akhir Penyata/i.test(text)
+  )
+}
+
+function compactDescription(parts: string[]) {
+  const seen = new Set<string>()
+  return parts
+    .map((part) => part.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .filter((part) => {
+      const key = part.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .join(' ')
+    .replace(/\s+([/#*-])/g, '$1')
+    .slice(0, 260)
+}
+
+function parseMoneyCell(value: string) {
+  const text = value.trim()
+  if (!text) return undefined
+  const match = text.match(amountPattern)?.at(-1)
+  return match ? parseAmount(match) : undefined
+}
+
+function classifyStructuredRow(description: string, amount?: number) {
+  const label = classifyLine(description)
+  if (label !== 'Transaction') return label
+  if (amount && amount > 0) return 'Deposit'
+  if (amount && amount < 0) return 'Withdrawal'
+  return label
 }
 
 function buildFallbackRows(lines: string[]): ExtractedRow[] {
