@@ -6,10 +6,14 @@
     <title>ExtractMint HyperFrames Demo</title>
     <style>
       :root {
-        color: #fffdf7;
-        background: #102029;
+        color: #102029;
+        background: #fbfaf6;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
           "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
       }
 
       body {
@@ -17,21 +21,21 @@
       }
 
       .frame {
+        position: relative;
         width: 1920px;
         height: 1080px;
         overflow: hidden;
         background:
-          radial-gradient(circle at 18% 18%, rgba(18, 185, 129, 0.32), transparent 28%),
-          radial-gradient(circle at 84% 72%, rgba(216, 139, 38, 0.28), transparent 24%),
-          linear-gradient(135deg, #102029, #173d38 58%, #f7f1e6);
-        position: relative;
+          radial-gradient(circle at 16% 18%, rgba(18, 185, 129, 0.14), transparent 28%),
+          radial-gradient(circle at 82% 76%, rgba(216, 139, 38, 0.14), transparent 24%),
+          linear-gradient(135deg, #fbfaf6, #f2f5ed);
       }
 
       .copy {
         position: absolute;
         left: 82px;
-        top: 82px;
-        width: 760px;
+        top: 72px;
+        width: 600px;
       }
 
       .brand {
@@ -47,159 +51,342 @@
         width: 64px;
         height: 64px;
         place-items: center;
-        border-radius: 18px;
-        background: #b7ffe4;
+        border-radius: 16px;
+        background: #f7fbf5;
         color: #102029;
+        box-shadow:
+          inset 0 0 0 2px rgba(16, 32, 41, 0.12),
+          0 18px 44px rgba(16, 32, 41, 0.1);
+      }
+
+      .eyebrow {
+        margin: 86px 0 18px;
+        color: #087a65;
+        font-size: 20px;
+        font-weight: 850;
+        letter-spacing: 2px;
+        text-transform: uppercase;
       }
 
       h1 {
-        margin: 96px 0 0;
-        font-size: 92px;
-        line-height: 0.92;
+        margin: 0;
+        font-size: 90px;
+        line-height: 0.94;
         letter-spacing: 0;
       }
 
       p {
-        width: 620px;
-        margin: 34px 0 0;
-        color: rgba(255, 253, 247, 0.78);
-        font-size: 30px;
+        width: 560px;
+        margin: 32px 0 0;
+        color: #52636a;
+        font-size: 31px;
         line-height: 1.35;
       }
 
       .demo {
         position: absolute;
         right: 82px;
-        top: 126px;
+        top: 116px;
         display: grid;
-        grid-template-columns: 420px 110px 420px;
-        gap: 28px;
+        grid-template-columns: 420px 150px 500px;
+        gap: 26px;
         align-items: center;
-      }
-
-      .doc,
-      .sheet {
-        height: 540px;
-        border-radius: 34px;
-        background: #fffdf7;
-        box-shadow: 0 42px 90px rgba(0, 0, 0, 0.28);
-      }
-
-      .doc {
-        padding: 44px;
-      }
-
-      .line {
-        height: 18px;
-        margin-bottom: 34px;
-        border-radius: 999px;
-        background: #e2e8df;
-      }
-
-      .line:nth-child(1) {
-        width: 52%;
-        background: rgba(18, 185, 129, 0.64);
-      }
-
-      .line:nth-child(2) {
-        width: 88%;
-      }
-
-      .line:nth-child(3) {
-        width: 72%;
-      }
-
-      .line:nth-child(4) {
-        width: 46%;
-        background: rgba(216, 139, 38, 0.44);
-      }
-
-      .arrow {
-        display: grid;
-        width: 110px;
-        height: 110px;
-        place-items: center;
-        border-radius: 999px;
-        background: #b7ffe4;
-        color: #102029;
-        font-size: 52px;
-        font-weight: 900;
-      }
-
-      .sheet {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 2px;
-        padding: 2px;
+        width: 1150px;
+        min-height: 590px;
+        padding: 32px;
+        border-radius: 38px;
+        background: #102029;
+        box-shadow: 0 38px 100px rgba(16, 32, 41, 0.2);
         overflow: hidden;
       }
 
-      .cell {
-        background: #edf1ea;
+      .scan {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: -10%;
+        width: 120px;
+        background: linear-gradient(90deg, transparent, rgba(183, 255, 228, 0.28), transparent);
+        animation: scan 3.2s ease-in-out infinite;
       }
 
-      .cell:nth-child(5n),
-      .cell:nth-child(8),
-      .cell:nth-child(14),
-      .cell:nth-child(21) {
-        background: #b7ffe4;
+      .statement,
+      .workbook {
+        position: relative;
+        z-index: 1;
+        min-height: 430px;
+        border-radius: 24px;
+        overflow: hidden;
+        background: #fffdf7;
+        box-shadow: 0 32px 78px rgba(0, 0, 0, 0.25);
+      }
+
+      .label {
+        padding: 18px 20px;
+        border-bottom: 1px solid #e2e8df;
+        color: #617078;
+        font-size: 15px;
+        font-weight: 850;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+      }
+
+      .statement-row,
+      .sheet-head,
+      .sheet-row {
+        display: grid;
+        align-items: center;
+      }
+
+      .statement-row {
+        grid-template-columns: 0.85fr 1.1fr 0.7fr 0.8fr;
+        gap: 10px;
+        padding: 18px 20px;
+        border-bottom: 1px solid #e8ece7;
+        font-size: 17px;
+        animation: row-focus 3.6s ease-in-out infinite;
+      }
+
+      .statement-row:nth-child(3),
+      .sheet-row:nth-child(3) {
+        animation-delay: 0.28s;
+      }
+
+      .statement-row:nth-child(4),
+      .sheet-row:nth-child(4) {
+        animation-delay: 0.56s;
+      }
+
+      .statement-row span:nth-child(n + 3),
+      .sheet-row span:nth-child(n + 3) {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+
+      .pipeline {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 16px;
+      }
+
+      .pill {
+        padding: 16px 14px;
+        border: 1px solid rgba(183, 255, 228, 0.24);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #d9fff0;
+        font-size: 16px;
+        font-weight: 850;
+        text-align: center;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        animation: pill-pulse 2.1s ease-in-out infinite;
+      }
+
+      .pill:nth-child(2) {
+        animation-delay: 0.45s;
+      }
+
+      .sheet-head,
+      .sheet-row {
+        grid-template-columns: 0.75fr 1.1fr 0.85fr 0.75fr 0.85fr;
+      }
+
+      .sheet-head span,
+      .sheet-row span {
+        min-height: 56px;
+        display: grid;
+        align-items: center;
+        padding: 0 13px;
+        border-right: 1px solid #dfe7df;
+        border-bottom: 1px solid #dfe7df;
+        font-size: 14px;
+      }
+
+      .sheet-head span {
+        background: #eaf7ef;
+        color: #087a65;
+        font-weight: 850;
+      }
+
+      .sheet-row {
+        animation: row-focus 3.6s ease-in-out infinite;
+      }
+
+      .sheet-row span {
+        background: #fbfdf8;
+      }
+
+      .sheet-row span:nth-child(n + 3) {
+        background: #f3f8f1;
       }
 
       .caption {
         position: absolute;
         left: 82px;
         right: 82px;
-        bottom: 76px;
+        bottom: 70px;
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 22px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 18px;
       }
 
       .step {
-        padding: 26px;
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        border-radius: 24px;
-        background: rgba(255, 255, 255, 0.1);
+        min-height: 140px;
+        padding: 24px;
+        border: 1px solid rgba(16, 32, 41, 0.08);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.75);
       }
 
       .step strong {
         display: block;
-        margin-bottom: 8px;
-        color: #b7ffe4;
+        margin-bottom: 10px;
+        color: #087a65;
         font-size: 18px;
       }
 
       .step span {
-        font-size: 28px;
-        font-weight: 800;
+        display: block;
+        font-size: 27px;
+        font-weight: 850;
+      }
+
+      .step small {
+        display: block;
+        margin-top: 8px;
+        color: #52636a;
+        font-size: 17px;
+        line-height: 1.35;
+      }
+
+      @keyframes scan {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        50% {
+          transform: translateX(1350px);
+        }
+      }
+
+      @keyframes pill-pulse {
+        0%,
+        100% {
+          opacity: 0.48;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      @keyframes row-focus {
+        0%,
+        100% {
+          background: transparent;
+        }
+        50% {
+          background: rgba(18, 185, 129, 0.08);
+        }
       }
     </style>
   </head>
   <body>
-    <main class="frame" data-hyperframes-duration="6" data-hyperframes-fps="30">
+    <main class="frame" data-hyperframes-duration="7" data-hyperframes-fps="30">
       <section class="copy">
-        <div class="brand"><span class="mark">E</span> ExtractMint</div>
-        <h1>Convert documents into clean business files.</h1>
-        <p>Upload statements, receipts, invoices, scans, or spreadsheets. Export Excel, DOCX, CSV, and PDF.</p>
-      </section>
-      <section class="demo" aria-label="Document to spreadsheet animation">
-        <div class="doc">
-          <div class="line"></div>
-          <div class="line"></div>
-          <div class="line"></div>
-          <div class="line"></div>
+        <div class="brand">
+          <span class="mark" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 32 32">
+              <path
+                d="M9 4.75h10.4L24.5 10v17.25H9z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+              <path d="M19.5 5v5.5H25" fill="none" stroke="currentColor" stroke-width="2" />
+              <path
+                d="M12.5 14.5h8M12.5 18.5h8M12.5 22.5h8"
+                stroke="currentColor"
+                stroke-width="2"
+              />
+              <path d="M15.5 13v11" stroke="currentColor" stroke-width="1.5" opacity="0.72" />
+            </svg>
+          </span>
+          ExtractMint
         </div>
-        <div class="arrow">→</div>
-        <div class="sheet">
-          <script>
-            document.write(Array.from({ length: 40 }, () => '<span class="cell"></span>').join(''))
-          </script>
+        <div class="eyebrow">Statement to spreadsheet</div>
+        <h1>What the converter actually does.</h1>
+        <p>
+          It reads the bank statement table, keeps transaction numbers in their own columns,
+          then exports a workbook ready for reconciliation.
+        </p>
+      </section>
+      <section class="demo" aria-label="Statement to Excel animation">
+        <div class="scan"></div>
+        <div class="statement">
+          <div class="label">PDF statement</div>
+          <div class="statement-row">
+            <span>13/03/2025</span>
+            <span>POS DEBIT</span>
+            <span>8.18</span>
+            <span>3,272.50</span>
+          </div>
+          <div class="statement-row">
+            <span>17/03/2025</span>
+            <span>AUTOPAY CR</span>
+            <span>8.18</span>
+            <span>3,279.33</span>
+          </div>
+          <div class="statement-row">
+            <span>24/03/2025</span>
+            <span>TR IBG</span>
+            <span>1,000.00</span>
+            <span>2,275.58</span>
+          </div>
+        </div>
+        <div class="pipeline">
+          <div class="pill">detect columns</div>
+          <div class="pill">check balances</div>
+        </div>
+        <div class="workbook">
+          <div class="label">Excel output</div>
+          <div class="sheet-head">
+            <span>Date</span>
+            <span>Description</span>
+            <span>Withdrawal</span>
+            <span>Deposit</span>
+            <span>Balance</span>
+          </div>
+          <div class="sheet-row">
+            <span>13/03/2025</span>
+            <span>POS DEBIT</span>
+            <span>8.18</span>
+            <span></span>
+            <span>3,272.50</span>
+          </div>
+          <div class="sheet-row">
+            <span>17/03/2025</span>
+            <span>AUTOPAY CR</span>
+            <span></span>
+            <span>8.18</span>
+            <span>3,279.33</span>
+          </div>
+          <div class="sheet-row">
+            <span>24/03/2025</span>
+            <span>TR IBG</span>
+            <span>1,000.00</span>
+            <span></span>
+            <span>2,275.58</span>
+          </div>
         </div>
       </section>
       <section class="caption">
-        <div class="step"><strong>01</strong><span>Upload</span></div>
-        <div class="step"><strong>02</strong><span>Extract</span></div>
-        <div class="step"><strong>03</strong><span>Export</span></div>
+        <div class="step"><strong>01</strong><span>Upload</span><small>Add a bank statement PDF.</small></div>
+        <div class="step"><strong>02</strong><span>Detect</span><small>Find dates, descriptions, and amounts.</small></div>
+        <div class="step"><strong>03</strong><span>Check</span><small>Keep the running balance trail.</small></div>
+        <div class="step"><strong>04</strong><span>Export</span><small>Download Excel, CSV, DOCX, or PDF.</small></div>
       </section>
     </main>
   </body>

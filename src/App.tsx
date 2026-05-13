@@ -12,9 +12,9 @@ import {
   LockKeyhole,
   PlayCircle,
   ReceiptText,
-  Sparkles,
+  ShieldCheck,
+  Table2,
   UploadCloud,
-  Wand2,
 } from 'lucide-react'
 import { type DragEvent, useMemo, useRef, useState } from 'react'
 import './App.css'
@@ -38,16 +38,20 @@ const supportItems = [
 
 const workflow = [
   {
-    title: 'Drop the file',
-    copy: 'PDF, receipt image, spreadsheet, DOCX, TXT, or CSV.',
+    title: 'Upload the statement',
+    copy: 'Choose a PDF bank statement, receipt, invoice, spreadsheet, or scan.',
   },
   {
-    title: 'Extract the structure',
-    copy: 'Dates, descriptions, totals, balances, and document notes.',
+    title: 'Read the table layout',
+    copy: 'ExtractMint keeps dates, descriptions, references, withdrawals, deposits, and balances in separate columns.',
   },
   {
-    title: 'Export cleanly',
-    copy: 'Excel, Google Docs-ready DOCX, CSV, and PDF outputs.',
+    title: 'Check the balance trail',
+    copy: 'Running balances are preserved so you can quickly spot missing or misread transactions.',
+  },
+  {
+    title: 'Download the file',
+    copy: 'Export a clean Excel workbook, CSV, DOCX, or PDF for accounting and reconciliation.',
   },
 ]
 
@@ -55,6 +59,39 @@ const metrics = [
   ['40+', 'file and table patterns'],
   ['Local', 'browser-side processing'],
   ['4', 'export formats'],
+]
+
+const faqItems = [
+  {
+    question: 'What does ExtractMint convert?',
+    answer:
+      'It converts bank statements, receipts, invoices, PDFs, DOCX files, CSV files, spreadsheets, and image scans into structured outputs.',
+  },
+  {
+    question: 'Does it work with bank statement tables?',
+    answer:
+      'Yes. For text-based PDFs it reads table positions, separates withdrawal, deposit, tax, balance, reference, date, and description columns, then exports them to Excel.',
+  },
+  {
+    question: 'Are my files uploaded to a server?',
+    answer:
+      'This static version processes files in your browser. The file stays on your device unless you later add a backend conversion queue.',
+  },
+  {
+    question: 'What files can I download?',
+    answer:
+      'You can download Excel XLSX, CSV, Google Docs-ready DOCX, and PDF summaries from the same extracted data.',
+  },
+  {
+    question: 'Will scanned statements always work?',
+    answer:
+      'Images and scans use browser OCR, so clean scans work best. Difficult scans may need a future server OCR pipeline for higher accuracy.',
+  },
+  {
+    question: 'Can this become a paid SaaS?',
+    answer:
+      'Yes. The current version is a deployable static prototype. Accounts, credits, batch jobs, API access, and audit logs can be added with a backend.',
+  },
 ]
 
 function App() {
@@ -145,7 +182,7 @@ function App() {
       <header className="site-header">
         <a className="brand" href="#top" aria-label="ExtractMint home">
           <span className="brand-mark">
-            <Sparkles size={18} />
+            <LogoMark />
           </span>
           <span>ExtractMint</span>
         </a>
@@ -153,6 +190,7 @@ function App() {
           <a href="#converter">Converter</a>
           <a href="#formats">Formats</a>
           <a href="#video">Demo</a>
+          <a href="#faq">FAQ</a>
         </nav>
         <a className="header-action" href="#converter">
           Try it
@@ -474,8 +512,8 @@ function App() {
 
       <section className="workflow-section" id="video">
         <div className="section-heading">
-          <span className="eyebrow">Remotion + HyperFrames-ready</span>
-          <h2>The walkthrough is designed as motion, not a wall of instructions.</h2>
+          <span className="eyebrow">How it works</span>
+          <h2>From statement PDF to Excel rows you can reconcile.</h2>
         </div>
         <div className="workflow-grid">
           {workflow.map((step, index) => (
@@ -492,22 +530,66 @@ function App() {
             </motion.article>
           ))}
         </div>
-        <div className="motion-preview" aria-label="Animated product flow preview">
+        <div className="process-demo" aria-label="Animated statement conversion example">
           <motion.div
             className="scan-line"
             animate={{ x: ['-5%', '105%'] }}
             transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
           />
-          <div className="motion-doc">
-            <span />
-            <span />
-            <span />
-            <span />
+          <div className="source-statement">
+            <div className="demo-label">PDF statement</div>
+            <div className="statement-row">
+              <span>13/03/2025</span>
+              <span>POS DEBIT</span>
+              <span>8.18</span>
+              <span>3,272.50</span>
+            </div>
+            <div className="statement-row">
+              <span>17/03/2025</span>
+              <span>AUTOPAY CR</span>
+              <span>8.18</span>
+              <span>3,279.33</span>
+            </div>
+            <div className="statement-row">
+              <span>24/03/2025</span>
+              <span>TR IBG</span>
+              <span>1,000.00</span>
+              <span>2,275.58</span>
+            </div>
           </div>
-          <Wand2 size={30} />
-          <div className="motion-sheet">
-            {Array.from({ length: 16 }).map((_, index) => (
-              <span key={index} />
+          <div className="mapping-column">
+            <motion.span
+              animate={{ opacity: [0.42, 1, 0.42] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              detect columns
+            </motion.span>
+            <motion.span
+              animate={{ opacity: [1, 0.42, 1] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              verify balances
+            </motion.span>
+          </div>
+          <div className="excel-output">
+            <div className="demo-label">Excel output</div>
+            <div className="excel-head">
+              <span>Date</span>
+              <span>Description</span>
+              <span>Withdrawal</span>
+              <span>Deposit</span>
+              <span>Balance</span>
+            </div>
+            {[
+              ['13/03/2025', 'POS DEBIT', '8.18', '', '3,272.50'],
+              ['17/03/2025', 'AUTOPAY CR', '', '8.18', '3,279.33'],
+              ['24/03/2025', 'TR IBG', '1,000.00', '', '2,275.58'],
+            ].map((row) => (
+              <div className="excel-row" key={row.join('-')}>
+                {row.map((cell, index) => (
+                  <span key={`${cell}-${index}`}>{cell}</span>
+                ))}
+              </div>
             ))}
           </div>
         </div>
@@ -525,14 +607,45 @@ function App() {
           <p>PDF text, DOCX, sheets, images, receipts, and plain text are supported.</p>
         </div>
         <div>
-          <Sparkles size={22} />
+          <Table2 size={22} />
+          <h3>Spreadsheet-first</h3>
+          <p>Rows, references, withdrawals, deposits, and balances export as usable columns.</p>
+        </div>
+        <div>
+          <ShieldCheck size={22} />
           <h3>Ready for SaaS scale</h3>
-          <p>The UI leaves room for paid credits, API keys, and team workflows.</p>
+          <p>The product can grow into credits, API keys, team access, and audit logs.</p>
+        </div>
+      </section>
+
+      <section className="faq-section" id="faq">
+        <div className="section-heading">
+          <span className="eyebrow">FAQ</span>
+          <h2>What people usually want to know before trying it.</h2>
+        </div>
+        <div className="faq-grid">
+          {faqItems.map((item, index) => (
+            <motion.details
+              key={item.question}
+              initial={{ opacity: 0.92, y: 14 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: index * 0.04 }}
+            >
+              <summary>{item.question}</summary>
+              <p>{item.answer}</p>
+            </motion.details>
+          ))}
         </div>
       </section>
 
       <footer>
-        <strong>ExtractMint</strong>
+        <strong>
+          <span className="footer-mark">
+            <LogoMark />
+          </span>
+          ExtractMint
+        </strong>
         <span>Document extraction for operators, accountants, and founders.</span>
       </footer>
 
@@ -542,12 +655,29 @@ function App() {
             animate={{ rotate: 360 }}
             transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
           >
-            <Sparkles size={18} />
+            <Table2 size={18} />
           </motion.div>
           Extracting structure...
         </div>
       )}
     </main>
+  )
+}
+
+function LogoMark() {
+  return (
+    <svg viewBox="0 0 32 32" role="img" aria-label="ExtractMint mark">
+      <path
+        d="M9 4.75h10.4L24.5 10v17.25H9z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path d="M19.5 5v5.5H25" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M12.5 14.5h8M12.5 18.5h8M12.5 22.5h8" stroke="currentColor" strokeWidth="2" />
+      <path d="M15.5 13v11" stroke="currentColor" strokeWidth="1.5" opacity="0.72" />
+    </svg>
   )
 }
 
