@@ -1,0 +1,38 @@
+# ExtractMint
+
+> ExtractMint is a browser-based document converter focused on turning bank statements and business documents into clean working files.
+
+Website: https://extractmint.netlify.app/
+
+## What ExtractMint Does
+
+- Converts bank statement PDFs into spreadsheet-friendly rows.
+- Exports Excel XLSX, CSV, Google Docs-ready DOCX, and PDF summaries.
+- Handles text PDFs, DOCX files, spreadsheets, CSV, plain text, receipts, invoices, and images.
+- Uses browser-side parsing in the current static implementation.
+- Preserves transaction fields such as date, description, reference, withdrawal, deposit, tax, amount, category, and balance where available.
+
+## Primary Use Cases
+
+- Bank statement to Excel conversion.
+- PDF bank statement to CSV conversion.
+- Accountant and bookkeeper statement review.
+- Founder/operator monthly reconciliation.
+- Receipt, invoice, and office document extraction.
+
+## Important Product Notes
+
+- Text-based PDFs are the strongest input.
+- Scanned statements rely on OCR and should be reviewed before export.
+- Financial extraction should be validated against opening and closing balances before accounting use.
+- The current app is a static browser-side prototype that can grow into a SaaS with accounts, credits, batch jobs, API access, audit logs, and server OCR.
+
+## Key Pages
+
+- Home and converter: https://extractmint.netlify.app/
+- Bank statement to Excel: https://extractmint.netlify.app/convert/bank-statement-to-excel/
+- PDF bank statement to Excel: https://extractmint.netlify.app/convert/pdf-bank-statement-to-excel/
+- Scanned bank statement to Excel: https://extractmint.netlify.app/convert/scanned-bank-statement-to-excel/
+- CIMB bank statement to Excel: https://extractmint.netlify.app/convert/cimb-bank-statement-to-excel/
+- Maybank statement to Excel: https://extractmint.netlify.app/convert/maybank-bank-statement-to-excel/
+- Singapore bank statement to Excel: https://extractmint.netlify.app/convert/singapore-bank-statement-to-excel/

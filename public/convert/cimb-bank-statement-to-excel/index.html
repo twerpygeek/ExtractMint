@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>CIMB Bank Statement to Excel | ExtractMint</title>
+    <meta
+      name="description"
+      content="Convert CIMB-style bank statement PDFs into Excel or CSV rows with dates, descriptions, withdrawals, deposits, tax, and balances."
+    />
+    <link rel="canonical" href="https://extractmint.netlify.app/convert/cimb-bank-statement-to-excel/" />
+    <link rel="stylesheet" href="/seo.css" />
+    <meta property="og:title" content="CIMB Bank Statement to Excel | ExtractMint" />
+    <meta property="og:image" content="https://extractmint.netlify.app/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <div class="page">
+      <nav class="nav">
+        <a class="brand" href="/"><span class="mark" aria-hidden="true">EM</span>ExtractMint</a>
+        <div class="nav-links"><a href="/#converter">Converter</a><a href="/convert/bank-statement-to-excel/">Bank statements</a></div>
+      </nav>
+      <main>
+        <section class="hero">
+          <div>
+            <span class="eyebrow">CIMB statement workflow</span>
+            <h1>Convert CIMB-style statement PDFs into Excel rows.</h1>
+            <p class="lede">
+              ExtractMint includes parser logic for CIMB-style transaction tables, including date,
+              description, reference, withdrawal, deposit, tax, and balance columns.
+            </p>
+            <div class="cta-row">
+              <a class="button" href="/#converter">Convert a CIMB statement</a>
+              <a class="button secondary" href="/convert/maybank-bank-statement-to-excel/">Maybank guide</a>
+            </div>
+          </div>
+          <aside class="demo-card">
+            <div class="drop"><strong>CIMB PDF statement</strong><div class="progress"><span></span></div></div>
+            <div class="sheet">
+              <div class="sheet-head"><span>Date</span><span>Description</span><span>Withdrawal</span><span>Balance</span></div>
+              <div class="sheet-row"><span>13/03</span><span>POS DEBIT</span><span>8.18</span><span>3,272.50</span></div>
+              <div class="sheet-row highlight"><span>24/03</span><span>TR IBG</span><span>1,000.00</span><span>2,275.58</span></div>
+              <div class="sheet-row"><span>29/03</span><span>SERVICE FEE</span><span>4.00</span><span>2,271.58</span></div>
+            </div>
+          </aside>
+        </section>
+        <section class="grid">
+          <article class="panel"><h2>Columns preserved</h2><p>For supported layouts, withdrawals, deposits, tax, and balances are exported as separate spreadsheet columns.</p></article>
+          <article class="panel"><h2>Useful for review</h2><p>Accountants can use running balances to check whether rows were skipped or debit and credit fields were misread.</p></article>
+          <article class="panel"><h2>Privacy-first static app</h2><p>The current implementation runs in the browser and is suitable for testing statement conversion before adding a SaaS backend.</p></article>
+        </section>
+        <section class="related">
+          <a href="/convert/bank-statement-to-excel/">Bank statement to Excel</a>
+          <a href="/convert/pdf-bank-statement-to-excel/">PDF bank statement to Excel</a>
+          <a href="/convert/scanned-bank-statement-to-excel/">Scanned bank statement to Excel</a>
+        </section>
+      </main>
+      <footer class="footer"><span>ExtractMint</span><span>CIMB-style statements to clean Excel rows.</span></footer>
+    </div>
+  </body>
+</html>

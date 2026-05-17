@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://extractmint.netlify.app/sitemap.xml
