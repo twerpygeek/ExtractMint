@@ -28,12 +28,31 @@ export type ExtractedRow = {
   source: string
 }
 
+export type ValidationIssue = {
+  severity: 'info' | 'warning' | 'error'
+  message: string
+  rowIndex?: number
+  expectedBalance?: number
+  actualBalance?: number
+  delta?: number
+}
+
+export type ValidationSummary = {
+  status: 'valid' | 'review' | 'missing'
+  checkedRows: number
+  issueCount: number
+  openingBalance?: number
+  closingBalance?: number
+  issues: ValidationIssue[]
+}
+
 export type ConversionResult = {
   fileName: string
   fileType: string
   rawText: string
   rows: ExtractedRow[]
   confidence: number
+  validation: ValidationSummary
   processedAt: string
   summary: {
     title: string
@@ -117,6 +136,8 @@ export async function createExcelBlob(result: ConversionResult) {
     { header: 'Kind', key: 'kind', width: 18 },
     { header: 'Confidence', key: 'confidence', width: 16 },
     { header: 'Total', key: 'total', width: 16 },
+    { header: 'Validation', key: 'validation', width: 18 },
+    { header: 'Issues', key: 'issues', width: 12 },
     { header: 'Processed', key: 'processed', width: 26 },
   ]
   summary.addRow({
@@ -124,7 +145,20 @@ export async function createExcelBlob(result: ConversionResult) {
     kind: result.summary.documentKind,
     confidence: `${result.confidence}%`,
     total: result.summary.total,
+    validation: validationLabel(result.validation.status),
+    issues: result.validation.issueCount,
     processed: result.processedAt,
+  })
+  result.validation.issues.forEach((issue) => {
+    summary.addRow({
+      file: issue.rowIndex !== undefined ? `Row ${issue.rowIndex + 1}` : 'Document',
+      kind: issue.severity,
+      confidence: '',
+      total: issue.delta ?? '',
+      validation: issue.message,
+      issues: '',
+      processed: '',
+    })
   })
 
   const rows = workbook.addWorksheet('Rows')
@@ -137,11 +171,13 @@ export async function createExcelBlob(result: ConversionResult) {
     { header: 'Tax', key: 'tax', width: 12 },
     { header: 'Amount', key: 'amount', width: 16 },
     { header: 'Balance', key: 'balance', width: 16 },
+    { header: 'Review Status', key: 'reviewStatus', width: 18 },
+    { header: 'Review Notes', key: 'reviewNotes', width: 42 },
     { header: 'Category', key: 'category', width: 18 },
     { header: 'Confidence', key: 'confidence', width: 16 },
     { header: 'Source', key: 'source', width: 18 },
   ]
-  result.rows.forEach((row) => {
+  result.rows.forEach((row, index) => {
     rows.addRow({
       date: row.date ?? '',
       description: row.description,
@@ -151,6 +187,8 @@ export async function createExcelBlob(result: ConversionResult) {
       tax: row.tax ?? '',
       amount: row.amount ?? '',
       balance: row.balance ?? '',
+      reviewStatus: rowReviewStatus(result.validation, index),
+      reviewNotes: rowReviewNotes(result.validation, index),
       category: row.category,
       confidence: `${row.confidence}%`,
       source: row.source,
@@ -178,11 +216,13 @@ export function createCsvBlob(result: ConversionResult) {
       'Tax',
       'Amount',
       'Balance',
+      'Review Status',
+      'Review Notes',
       'Category',
       'Confidence',
       'Source',
     ],
-    ...result.rows.map((row) => [
+    ...result.rows.map((row, index) => [
       row.date ?? '',
       row.description,
       row.reference ?? '',
@@ -191,6 +231,8 @@ export function createCsvBlob(result: ConversionResult) {
       String(row.tax ?? ''),
       String(row.amount ?? ''),
       String(row.balance ?? ''),
+      rowReviewStatus(result.validation, index),
+      rowReviewNotes(result.validation, index),
       row.category,
       `${row.confidence}%`,
       row.source,
@@ -230,6 +272,8 @@ export async function createDocxBlob(result: ConversionResult) {
         'Tax',
         'Amount',
         'Balance',
+        'Review Status',
+        'Review Notes',
         'Type',
       ].map(
         (label) =>
@@ -239,7 +283,7 @@ export async function createDocxBlob(result: ConversionResult) {
       ),
     }),
     ...result.rows.map(
-      (row) =>
+      (row, index) =>
         new TableRow({
           children: [
             row.date ?? '',
@@ -250,6 +294,8 @@ export async function createDocxBlob(result: ConversionResult) {
             money(row.tax),
             money(row.amount),
             money(row.balance),
+            rowReviewStatus(result.validation, index),
+            rowReviewNotes(result.validation, index),
             row.category,
           ].map((value) => new TableCell({ children: [new Paragraph(value)] })),
         }),
@@ -267,6 +313,8 @@ export async function createDocxBlob(result: ConversionResult) {
           new Paragraph(`Source file: ${result.fileName}`),
           new Paragraph(`Detected type: ${result.summary.documentKind}`),
           new Paragraph(`Confidence: ${result.confidence}%`),
+          new Paragraph(`Validation: ${validationLabel(result.validation.status)}`),
+          ...result.validation.issues.slice(0, 6).map((issue) => new Paragraph(issue.message)),
           new Paragraph(''),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
@@ -302,6 +350,8 @@ async function createPdfBlobAsync(result: ConversionResult) {
   pdf.text(`Detected type: ${result.summary.documentKind}`, margin, y)
   y += 16
   pdf.text(`Confidence: ${result.confidence}%`, margin, y)
+  y += 16
+  pdf.text(`Validation: ${validationLabel(result.validation.status)}`, margin, y)
   y += 28
 
   pdf.setFont('helvetica', 'bold')
@@ -315,7 +365,7 @@ async function createPdfBlobAsync(result: ConversionResult) {
   y += 18
 
   pdf.setFont('helvetica', 'normal')
-  result.rows.slice(0, 28).forEach((row) => {
+  result.rows.slice(0, 28).forEach((row, index) => {
     if (y > 742) {
       pdf.addPage()
       y = margin
@@ -325,6 +375,13 @@ async function createPdfBlobAsync(result: ConversionResult) {
     pdf.text(money(row.withdrawal), margin + 310, y)
     pdf.text(money(row.deposit), margin + 390, y)
     pdf.text(money(row.balance), margin + 470, y)
+    const note = rowReviewNotes(result.validation, index)
+    if (note) {
+      y += 12
+      pdf.setTextColor(146, 84, 0)
+      pdf.text(pdf.splitTextToSize(`Review: ${note}`, 420), margin + 82, y)
+      pdf.setTextColor(0, 0, 0)
+    }
     y += 24
   })
 
@@ -520,8 +577,9 @@ function parseRawText(rawText: string, fileName: string, fileType: string): Conv
       ? structuredRows
       : lines.flatMap((line, index) => parseLine(line, index + 1))
   const fallbackRows = rows.length > 0 ? rows : buildFallbackRows(lines)
-  const summary = summarize(lines, fallbackRows, fileName)
-  const confidence = scoreConfidence(fileType, fallbackRows, normalized)
+  const validation = validateBalances(fallbackRows)
+  const summary = summarize(lines, fallbackRows, fileName, validation)
+  const confidence = scoreConfidence(fileType, fallbackRows, normalized, validation)
 
   return {
     fileName,
@@ -529,6 +587,7 @@ function parseRawText(rawText: string, fileName: string, fileType: string): Conv
     rawText: normalized,
     rows: fallbackRows,
     confidence,
+    validation,
     processedAt: new Date().toISOString(),
     summary,
   }
@@ -728,7 +787,12 @@ function buildFallbackRows(lines: string[]): ExtractedRow[] {
       ]
 }
 
-function summarize(lines: string[], rows: ExtractedRow[], fileName: string) {
+function summarize(
+  lines: string[],
+  rows: ExtractedRow[],
+  fileName: string,
+  validation: ValidationSummary,
+) {
   const firstMeaningful = lines.find((line) => /[a-z]/i.test(line)) ?? fileName
   const totalLine =
     lines.find((line) => /\b(total|ending balance|amount due|grand total|balance due)\b/i.test(line)) ??
@@ -752,19 +816,128 @@ function summarize(lines: string[], rows: ExtractedRow[], fileName: string) {
     vendor: firstMeaningful,
     notes: [
       `${rows.length} structured rows detected`,
+      validation.status === 'valid'
+        ? `${validation.checkedRows} balance transitions validated`
+        : validation.status === 'review'
+          ? `${validation.issueCount} balance issue${validation.issueCount === 1 ? '' : 's'} need review`
+          : 'Balance trail could not be fully validated',
       totalLine ? `Total signal: ${totalLine.slice(0, 90)}` : 'No explicit total line found',
     ],
   }
 }
 
-function scoreConfidence(fileType: string, rows: ExtractedRow[], rawText: string) {
+function scoreConfidence(
+  fileType: string,
+  rows: ExtractedRow[],
+  rawText: string,
+  validation: ValidationSummary,
+) {
   let score = 46
   if (fileType.includes('pdf') || fileType === 'pdf') score += 8
   if (rawText.length > 180) score += 12
   if (rows.length >= 3) score += 18
   if (rows.some((row) => row.date)) score += 10
   if (rows.some((row) => row.balance !== undefined)) score += 8
+  if (validation.status === 'valid') score += 2
+  if (validation.status === 'review') score -= Math.min(16, validation.issueCount * 4)
   return Math.max(20, Math.min(98, score))
+}
+
+function validateBalances(rows: ExtractedRow[]): ValidationSummary {
+  const issues: ValidationIssue[] = []
+  const rowsWithBalances = rows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.balance !== undefined)
+  const openingRow = rows.find((row) => /^OPENING BALANCE$/i.test(row.description))
+  const closingRow = [...rows].reverse().find((row) => /^CLOSING BALANCE/i.test(row.description))
+  let checkedRows = 0
+
+  for (let position = 1; position < rowsWithBalances.length; position += 1) {
+    const previous = rowsWithBalances[position - 1]
+    const current = rowsWithBalances[position]
+    const amount = amountForBalanceCheck(current.row)
+
+    if (amount === undefined || previous.row.balance === undefined || current.row.balance === undefined) {
+      if (current.row.date) {
+        issues.push({
+          severity: 'warning',
+          rowIndex: current.index,
+          message: 'Balance present but no debit/deposit amount was detected for this row.',
+        })
+      }
+      continue
+    }
+
+    checkedRows += 1
+    const expectedBalance = roundMoney(previous.row.balance + amount)
+    const actualBalance = roundMoney(current.row.balance)
+    const delta = roundMoney(actualBalance - expectedBalance)
+
+    if (Math.abs(delta) > 0.01) {
+      issues.push({
+        severity: Math.abs(delta) > 1 ? 'error' : 'warning',
+        rowIndex: current.index,
+        expectedBalance,
+        actualBalance,
+        delta,
+        message: `Expected balance ${money(expectedBalance)} after ${money(amount)}, but found ${money(actualBalance)}.`,
+      })
+    }
+  }
+
+  const transactionRowsWithBalance = rowsWithBalances.filter(({ row }) => row.date).length
+  if (transactionRowsWithBalance > 1 && checkedRows === 0) {
+    issues.push({
+      severity: 'warning',
+      message: 'Balance columns were detected, but there were not enough debit/deposit amounts to validate the trail.',
+    })
+  }
+
+  const status: ValidationSummary['status'] =
+    checkedRows === 0 ? 'missing' : issues.length > 0 ? 'review' : 'valid'
+
+  return {
+    status,
+    checkedRows,
+    issueCount: issues.length,
+    openingBalance: openingRow?.balance ?? rowsWithBalances.at(0)?.row.balance,
+    closingBalance: closingRow?.balance ?? rowsWithBalances.at(-1)?.row.balance,
+    issues,
+  }
+}
+
+function amountForBalanceCheck(row: ExtractedRow) {
+  if (row.deposit !== undefined) return row.deposit
+  if (row.withdrawal !== undefined) return -row.withdrawal
+  return row.amount
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+function validationLabel(status: ValidationSummary['status']) {
+  if (status === 'valid') return 'Balance trail verified'
+  if (status === 'review') return 'Needs review'
+  return 'Not enough balance data'
+}
+
+function rowReviewIssues(validation: ValidationSummary, rowIndex: number) {
+  return validation.issues.filter((issue) => issue.rowIndex === rowIndex)
+}
+
+function rowReviewStatus(validation: ValidationSummary, rowIndex: number) {
+  const issues = rowReviewIssues(validation, rowIndex)
+  if (issues.some((issue) => issue.severity === 'error')) return 'Review'
+  if (issues.length > 0) return 'Check'
+  if (validation.checkedRows > 0) return 'Verified'
+  return 'Unvalidated'
+}
+
+function rowReviewNotes(validation: ValidationSummary, rowIndex: number) {
+  return rowReviewIssues(validation, rowIndex)
+    .map((issue) => issue.message)
+    .join(' ')
 }
 
 function cleanDescription(line: string, date?: string, amountMatches: string[] = []) {

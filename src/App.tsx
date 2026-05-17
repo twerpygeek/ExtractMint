@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  AlertTriangle,
   ArrowDownToLine,
   BadgeCheck,
   BarChart3,
@@ -27,6 +28,7 @@ import {
   createSampleResult,
   type ConversionResult,
   type ProgressEvent,
+  type ValidationSummary,
 } from './lib/converter'
 
 const supportItems = [
@@ -455,8 +457,12 @@ function App() {
                     <span>{activeResult?.fileType ?? 'document'}</span>
                     <h3>{activeResult?.summary.title ?? 'No file selected'}</h3>
                   </div>
-                  <div className="confidence-pill">
-                    <BadgeCheck size={16} />
+                  <div className={`confidence-pill ${validationClass(activeResult?.validation.status)}`}>
+                    {activeResult?.validation.status === 'review' ? (
+                      <AlertTriangle size={16} />
+                    ) : (
+                      <BadgeCheck size={16} />
+                    )}
                     {activeResult?.confidence ?? 0}% match
                   </div>
                 </div>
@@ -478,6 +484,11 @@ function App() {
                     <span>Export target</span>
                     <strong>Excel, DOCX, PDF</strong>
                   </div>
+                  <div className="validation-card">
+                    <span>Balance check</span>
+                    <strong>{validationTitle(activeResult?.validation)}</strong>
+                    <small>{validationDescription(activeResult?.validation)}</small>
+                  </div>
                 </div>
 
                 <div className="table-wrap">
@@ -488,19 +499,34 @@ function App() {
                         <th>Description</th>
                         <th>Amount</th>
                         <th>Balance</th>
+                        <th>Review</th>
                         <th>Type</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(activeResult?.rows ?? []).slice(0, 8).map((row, index) => (
-                        <tr key={`${row.description}-${index}`}>
-                          <td>{row.date || 'Detected'}</td>
-                          <td>{row.description}</td>
-                          <td>{formatAmount(row.amount)}</td>
-                          <td>{formatAmount(row.balance)}</td>
-                          <td>{row.category}</td>
-                        </tr>
-                      ))}
+                      {(activeResult?.rows ?? []).slice(0, 8).map((row, index) => {
+                        const review = rowReview(activeResult?.validation, index)
+                        return (
+                          <tr
+                            key={`${row.description}-${index}`}
+                            className={review.status === 'Review' ? 'needs-review' : ''}
+                          >
+                            <td>{row.date || 'Detected'}</td>
+                            <td>
+                              {row.description}
+                              {review.note ? <small className="review-note">{review.note}</small> : null}
+                            </td>
+                            <td>{formatAmount(row.amount)}</td>
+                            <td>{formatAmount(row.balance)}</td>
+                            <td>
+                              <span className={`review-pill ${review.status.toLowerCase()}`}>
+                                {review.status}
+                              </span>
+                            </td>
+                            <td>{row.category}</td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -687,6 +713,40 @@ function formatAmount(value?: number) {
     style: 'currency',
     currency: 'USD',
   }).format(value)
+}
+
+function validationTitle(validation?: ValidationSummary) {
+  if (!validation) return 'Not checked'
+  if (validation.status === 'valid') return 'Verified'
+  if (validation.status === 'review') return 'Needs review'
+  return 'Not enough data'
+}
+
+function validationDescription(validation?: ValidationSummary) {
+  if (!validation) return 'Upload a file to validate running balances.'
+  if (validation.status === 'valid') {
+    return `${validation.checkedRows} balance transitions matched.`
+  }
+  if (validation.status === 'review') {
+    return `${validation.issueCount} issue${validation.issueCount === 1 ? '' : 's'} flagged.`
+  }
+  return 'Balances or amounts were missing from the extracted rows.'
+}
+
+function validationClass(status?: ValidationSummary['status']) {
+  if (status === 'valid') return 'is-valid'
+  if (status === 'review') return 'is-review'
+  return 'is-missing'
+}
+
+function rowReview(validation: ValidationSummary | undefined, rowIndex: number) {
+  if (!validation) return { status: 'Unvalidated', note: '' }
+  const issues = validation.issues.filter((issue) => issue.rowIndex === rowIndex)
+  const note = issues.map((issue) => issue.message).join(' ')
+  if (issues.some((issue) => issue.severity === 'error')) return { status: 'Review', note }
+  if (issues.length > 0) return { status: 'Check', note }
+  if (validation.checkedRows > 0) return { status: 'Verified', note: '' }
+  return { status: 'Unvalidated', note: '' }
 }
 
 export default App

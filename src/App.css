@@ -729,9 +729,19 @@ footer {
   font-weight: 760;
 }
 
+.confidence-pill.is-review {
+  background: #fff4db;
+  color: #8a5600;
+}
+
+.confidence-pill.is-missing {
+  background: #eef2f1;
+  color: #55666d;
+}
+
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -748,6 +758,17 @@ footer {
   font-size: 20px;
 }
 
+.summary-cards small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.validation-card {
+  background: #eef8ee !important;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
@@ -757,7 +778,7 @@ footer {
 
 table {
   width: 100%;
-  min-width: 720px;
+  min-width: 860px;
   border-collapse: collapse;
 }
 
@@ -780,6 +801,41 @@ th {
 td:nth-child(3),
 td:nth-child(4) {
   font-variant-numeric: tabular-nums;
+}
+
+.needs-review td {
+  background: #fff8e6;
+}
+
+.review-note {
+  display: block;
+  margin-top: 5px;
+  color: #8a5600;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.review-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #eef2f1;
+  color: #55666d;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.review-pill.verified {
+  background: #e8fff4;
+  color: var(--mint-dark);
+}
+
+.review-pill.check,
+.review-pill.review {
+  background: #fff4db;
+  color: #8a5600;
 }
 
 tbody tr:last-child td {
