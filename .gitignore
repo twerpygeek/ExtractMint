@@ -12,6 +12,7 @@ dist
 dist-ssr
 artifacts
 out
+.vercel
 *.local
 
 # Editor directories and files

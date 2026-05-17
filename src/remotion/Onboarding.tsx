@@ -632,7 +632,7 @@ function CtaPanel({ progress }: { progress: number }) {
           fontWeight: 930,
         }}
       >
-        extractmint.netlify.app
+        extractmint.vercel.app
       </div>
     </div>
   )

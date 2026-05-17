@@ -13,7 +13,7 @@ Elegant static SaaS prototype for converting bank statements, receipts, scans, P
 - Remotion composition for a product explainer.
 - Remotion vertical onboarding promo for launch and social posts.
 - HyperFrames-ready HTML sources for a website-to-video walkthrough and onboarding promo.
-- GoDaddy shared-hosting deployment notes.
+- Vercel deployment config and fallback static-hosting notes.
 
 ## Local commands
 
@@ -22,7 +22,24 @@ npm install
 npm run dev
 npm run build
 npm run preview
+npm run deploy:vercel
 ```
+
+## Vercel deployment
+
+This repo is configured for Vercel as a static Vite app:
+
+- Build command: `npm run build`
+- Output directory: `dist`
+- Install command: `npm ci`
+
+Run:
+
+```bash
+npm run deploy:vercel
+```
+
+If the CLI asks you to authenticate, run `npx --yes vercel login` first, then rerun the deploy command.
 
 ## Video commands
 
@@ -36,7 +53,7 @@ npm run hyperframes:onboarding
 
 The rendered onboarding video is written to `out/extractmint-onboarding.mp4`. The HyperFrames sources live at `hyperframes/extractmint-demo.html` and `hyperframes/extractmint-onboarding.html`.
 
-## GoDaddy hosting
+## Static hosting fallback
 
 Run:
 
@@ -44,6 +61,6 @@ Run:
 npm run build
 ```
 
-Upload the contents of `dist/` to the GoDaddy hosting `public_html` directory. This build is static and does not need a Node server.
+Upload the contents of `dist/` to any static host. This build is static and does not need a Node server.
 
 For production-grade extraction of difficult scanned statements, add a server queue later for OCR, LLM validation, duplicate detection, authentication, billing, and audit logs.
