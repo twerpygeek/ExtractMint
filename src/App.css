@@ -713,9 +713,43 @@ footer {
   margin-bottom: 18px;
 }
 
+.pill-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
 .preview-header h3 {
   margin: 4px 0 0;
   font-size: clamp(24px, 3vw, 34px);
+}
+
+.validation-pill {
+  gap: 7px;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 760;
+  border: 1px solid rgba(16, 32, 41, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+}
+
+.validation-pass {
+  background: #ebf8ef;
+  color: var(--mint-dark);
+}
+
+.validation-warn {
+  background: #fff6df;
+  color: #7a5712;
+}
+
+.validation-fail {
+  background: #ffebe9;
+  color: #7a2b25;
 }
 
 .confidence-pill {
@@ -734,6 +768,26 @@ footer {
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin-bottom: 18px;
+}
+
+.validation-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(16, 32, 41, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  margin-bottom: 18px;
+}
+
+.validation-strip strong {
+  font-weight: 780;
+}
+
+.validation-strip span {
+  color: var(--muted);
 }
 
 .summary-cards div {

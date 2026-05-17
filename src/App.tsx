@@ -455,9 +455,24 @@ function App() {
                     <span>{activeResult?.fileType ?? 'document'}</span>
                     <h3>{activeResult?.summary.title ?? 'No file selected'}</h3>
                   </div>
-                  <div className="confidence-pill">
-                    <BadgeCheck size={16} />
-                    {activeResult?.confidence ?? 0}% match
+                  <div className="pill-stack">
+                    {activeResult?.validation && (
+                      <div
+                        className={`validation-pill validation-${activeResult.validation.status}`}
+                        title={activeResult.validation.notes.slice(0, 2).join(' • ')}
+                      >
+                        <ShieldCheck size={16} />
+                        {activeResult.validation.balanceTrail.checked === 0
+                          ? 'Balance trail: unavailable'
+                          : activeResult.validation.balanceTrail.breaks === 0
+                            ? 'Balance trail: OK'
+                            : `Balance trail: ${activeResult.validation.balanceTrail.breaks} break(s)`}
+                      </div>
+                    )}
+                    <div className="confidence-pill">
+                      <BadgeCheck size={16} />
+                      {activeResult?.confidence ?? 0}% match
+                    </div>
                   </div>
                 </div>
                 <div className="summary-cards">
@@ -479,6 +494,20 @@ function App() {
                     <strong>Excel, DOCX, PDF</strong>
                   </div>
                 </div>
+
+                {activeResult?.validation && (
+                  <div className="validation-strip" role="status">
+                    <strong>
+                      Validation:{' '}
+                      {activeResult.validation.status === 'pass'
+                        ? 'Pass'
+                        : activeResult.validation.status === 'warn'
+                          ? 'Needs review'
+                          : 'Fail'}
+                    </strong>
+                    <span>{activeResult.validation.notes.at(0) ?? 'Validation details available.'}</span>
+                  </div>
+                )}
 
                 <div className="table-wrap">
                   <table>

@@ -6,6 +6,7 @@ Elegant static SaaS prototype for converting bank statements, receipts, scans, P
 
 - Animated React/Vite landing app and conversion workspace.
 - Client-side extraction for PDFs, images via OCR, DOCX, XLSX/XLS, CSV, and TXT.
+- Statement validation: balance-trail checks plus ending-balance signal matching.
 - Export buttons for Excel `.xlsx`, Google Docs-ready `.docx`, `.pdf`, and `.csv`.
 - Remotion composition for a product explainer.
 - Remotion vertical onboarding promo for launch and social posts.

@@ -35,12 +35,27 @@ export type ConversionResult = {
   rows: ExtractedRow[]
   confidence: number
   processedAt: string
+  validation?: StatementValidation
   summary: {
     title: string
     documentKind: string
     total: number
     vendor?: string
     notes: string[]
+  }
+}
+
+export type StatementValidationStatus = 'pass' | 'warn' | 'fail'
+
+export type StatementValidation = {
+  status: StatementValidationStatus
+  notes: string[]
+  balanceTrail: {
+    checked: number
+    breaks: number
+    endingBalanceSignal?: number
+    endingBalanceFromRows?: number
+    matchEndingBalance?: boolean
   }
 }
 
@@ -156,6 +171,54 @@ export async function createExcelBlob(result: ConversionResult) {
       source: row.source,
     })
   })
+
+  if (result.validation) {
+    const validation = workbook.addWorksheet('Validation')
+    validation.columns = [
+      { header: 'Check', key: 'check', width: 28 },
+      { header: 'Result', key: 'result', width: 20 },
+      { header: 'Detail', key: 'detail', width: 64 },
+    ]
+
+    validation.addRow({
+      check: 'Status',
+      result: result.validation.status.toUpperCase(),
+      detail: '',
+    })
+    validation.addRow({
+      check: 'Balance trail',
+      result:
+        result.validation.balanceTrail.breaks === 0
+          ? 'OK'
+          : `${result.validation.balanceTrail.breaks} break(s)`,
+      detail: `${result.validation.balanceTrail.checked} checks`,
+    })
+    if (result.validation.balanceTrail.endingBalanceSignal !== undefined) {
+      validation.addRow({
+        check: 'Ending balance signal',
+        result: money(result.validation.balanceTrail.endingBalanceSignal),
+        detail:
+          result.validation.balanceTrail.matchEndingBalance === undefined
+            ? ''
+            : result.validation.balanceTrail.matchEndingBalance
+              ? 'Matches extracted balance'
+              : 'Differs from extracted balance',
+      })
+    }
+    if (result.validation.balanceTrail.endingBalanceFromRows !== undefined) {
+      validation.addRow({
+        check: 'Ending balance (rows)',
+        result: money(result.validation.balanceTrail.endingBalanceFromRows),
+        detail: '',
+      })
+    }
+    result.validation.notes.forEach((note) => {
+      validation.addRow({ check: 'Note', result: '', detail: note })
+    })
+    validation.getRow(1).font = { bold: true }
+    validation.views = [{ state: 'frozen', ySplit: 1 }]
+  }
+
   ;[summary, rows].forEach((sheet) => {
     sheet.getRow(1).font = { bold: true }
     sheet.views = [{ state: 'frozen', ySplit: 1 }]
@@ -521,6 +584,24 @@ function parseRawText(rawText: string, fileName: string, fileType: string): Conv
       : lines.flatMap((line, index) => parseLine(line, index + 1))
   const fallbackRows = rows.length > 0 ? rows : buildFallbackRows(lines)
   const summary = summarize(lines, fallbackRows, fileName)
+  const validation =
+    summary.documentKind === 'Statement'
+      ? validateStatement(lines, fallbackRows)
+      : undefined
+  if (validation) {
+    summary.notes.push(
+      validation.balanceTrail.breaks === 0
+        ? `Balance trail: OK (${validation.balanceTrail.checked} checks)`
+        : `Balance trail: ${validation.balanceTrail.breaks} break(s) across ${validation.balanceTrail.checked} checks`,
+    )
+    if (validation.balanceTrail.endingBalanceSignal !== undefined) {
+      summary.notes.push(
+        validation.balanceTrail.matchEndingBalance
+          ? 'Ending balance signal matches extracted rows'
+          : 'Ending balance signal differs from extracted rows (review)',
+      )
+    }
+  }
   const confidence = scoreConfidence(fileType, fallbackRows, normalized)
 
   return {
@@ -530,6 +611,7 @@ function parseRawText(rawText: string, fileName: string, fileType: string): Conv
     rows: fallbackRows,
     confidence,
     processedAt: new Date().toISOString(),
+    validation,
     summary,
   }
 }
@@ -647,6 +729,125 @@ function splitStatementColumns(line: string) {
   const columns = line.split('\t').map((column) => column.trim())
   while (columns.length < 7) columns.push('')
   return columns.slice(0, 7)
+}
+
+function validateStatement(lines: string[], rows: ExtractedRow[]): StatementValidation {
+  const notes: string[] = []
+  const endingBalanceSignal = findEndingBalanceSignal(lines)
+
+  const trailRows = rows.filter(
+    (row) =>
+      row.category !== 'Balance' &&
+      row.balance !== undefined &&
+      (row.amount !== undefined ||
+        row.deposit !== undefined ||
+        row.withdrawal !== undefined ||
+        row.tax !== undefined),
+  )
+
+  let checked = 0
+  let breaks = 0
+  let lastBalance: number | undefined
+
+  for (const row of trailRows) {
+    if (lastBalance === undefined) {
+      lastBalance = row.balance
+      continue
+    }
+
+    const expectedDelta = expectedBalanceDelta(row)
+    if (expectedDelta === undefined || row.balance === undefined) {
+      lastBalance = row.balance
+      continue
+    }
+
+    const actualDelta = row.balance - lastBalance
+    checked += 1
+
+    if (!closeEnough(actualDelta, expectedDelta, 0.01)) {
+      breaks += 1
+      if (breaks <= 4) {
+        notes.push(
+          `Balance break near ${row.date ?? row.source}: expected ${money(expectedDelta)} delta, got ${money(actualDelta)}`,
+        )
+      }
+    }
+
+    lastBalance = row.balance
+  }
+
+  if (checked === 0) {
+    notes.push('No balance trail checks possible (missing balances or amounts).')
+  } else if (breaks === 0) {
+    notes.push(`Balance trail is consistent across ${checked} transaction(s).`)
+  } else {
+    notes.push(`Balance trail has ${breaks} break(s); review highlighted rows.`)
+  }
+
+  const endingBalanceFromRows = rows
+    .filter((row) => row.balance !== undefined && row.category !== 'Balance')
+    .map((row) => row.balance)
+    .at(-1)
+
+  const matchEndingBalance =
+    endingBalanceSignal !== undefined && endingBalanceFromRows !== undefined
+      ? closeEnough(endingBalanceSignal, endingBalanceFromRows, 0.01)
+      : undefined
+
+  if (endingBalanceSignal !== undefined) {
+    notes.push(`Ending balance signal detected: ${money(endingBalanceSignal)}.`)
+    if (endingBalanceFromRows !== undefined) {
+      notes.push(
+        matchEndingBalance
+          ? 'Ending balance matches extracted running balance.'
+          : `Ending balance differs from extracted running balance (${money(endingBalanceFromRows)}).`,
+      )
+    }
+  }
+
+  const status: StatementValidationStatus =
+    checked === 0
+      ? 'warn'
+      : breaks === 0 && (matchEndingBalance !== false)
+        ? 'pass'
+        : breaks <= 2
+          ? 'warn'
+          : 'fail'
+
+  return {
+    status,
+    notes,
+    balanceTrail: {
+      checked,
+      breaks,
+      endingBalanceSignal,
+      endingBalanceFromRows,
+      matchEndingBalance,
+    },
+  }
+}
+
+function expectedBalanceDelta(row: ExtractedRow) {
+  if (row.deposit !== undefined || row.withdrawal !== undefined || row.tax !== undefined) {
+    return (row.deposit ?? 0) - (row.withdrawal ?? 0) - (row.tax ?? 0)
+  }
+  if (row.amount !== undefined) return row.amount
+  return undefined
+}
+
+function closeEnough(actual: number, expected: number, tolerance: number) {
+  return Math.abs(actual - expected) <= tolerance
+}
+
+function findEndingBalanceSignal(lines: string[]) {
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]
+    if (!/ending balance|closing balance|balance as at|available balance/i.test(line)) continue
+    const amounts = line.match(amountPattern)?.map(parseAmount).filter(isFinite) ?? []
+    if (amounts.length === 0) continue
+    return amounts.at(-1)
+  }
+  return undefined
 }
 
 function isStatementNoise(line: string) {
