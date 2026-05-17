@@ -49,6 +49,11 @@ export type ValidationSummary = {
 export type ConversionResult = {
   fileName: string
   fileType: string
+  fileMeta: {
+    size: number
+    lastModified: number
+    sha256?: string
+  }
   rawText: string
   rows: ExtractedRow[]
   confidence: number
@@ -96,12 +101,27 @@ export async function convertFiles(files: File[], onProgress: ProgressCallback) 
 
     onProgress({
       fileName: file.name,
+      stage: 'reading',
+      percent: Math.min(97, basePercent + 14),
+      detail: 'Fingerprinting file',
+    })
+
+    const sha256 = await sha256Hex(file)
+
+    onProgress({
+      fileName: file.name,
       stage: 'extracting',
       percent: Math.min(98, basePercent + 18),
       detail: 'Finding rows, totals, and document signals',
     })
 
-    results.push(parseRawText(rawText, file.name, file.type || extensionOf(file.name)))
+    results.push(
+      parseRawText(rawText, file.name, file.type || extensionOf(file.name), {
+        size: file.size,
+        lastModified: file.lastModified,
+        sha256,
+      }),
+    )
   }
 
   return results
@@ -121,7 +141,11 @@ Statement period Apr 01 2026 - Apr 30 2026
 Ending balance 38,268.10
 `
 
-  return parseRawText(sample, 'sample-bank-statement.pdf', 'application/pdf')
+  return parseRawText(sample, 'sample-bank-statement.pdf', 'application/pdf', {
+    size: sample.length,
+    lastModified: Date.now(),
+    sha256: 'sample',
+  })
 }
 
 export async function createExcelBlob(result: ConversionResult) {
@@ -138,6 +162,9 @@ export async function createExcelBlob(result: ConversionResult) {
     { header: 'Total', key: 'total', width: 16 },
     { header: 'Validation', key: 'validation', width: 18 },
     { header: 'Issues', key: 'issues', width: 12 },
+    { header: 'SHA-256', key: 'sha256', width: 66 },
+    { header: 'File size', key: 'size', width: 14 },
+    { header: 'Last modified', key: 'lastModified', width: 22 },
     { header: 'Processed', key: 'processed', width: 26 },
   ]
   summary.addRow({
@@ -147,6 +174,11 @@ export async function createExcelBlob(result: ConversionResult) {
     total: result.summary.total,
     validation: validationLabel(result.validation.status),
     issues: result.validation.issueCount,
+    sha256: result.fileMeta.sha256 ?? '',
+    size: result.fileMeta.size,
+    lastModified: result.fileMeta.lastModified
+      ? new Date(result.fileMeta.lastModified).toISOString()
+      : '',
     processed: result.processedAt,
   })
   result.validation.issues.forEach((issue) => {
@@ -157,6 +189,9 @@ export async function createExcelBlob(result: ConversionResult) {
       total: issue.delta ?? '',
       validation: issue.message,
       issues: '',
+      sha256: '',
+      size: '',
+      lastModified: '',
       processed: '',
     })
   })
@@ -330,6 +365,47 @@ export async function createDocxBlob(result: ConversionResult) {
 
 export function createPdfBlob(result: ConversionResult) {
   return createPdfBlobAsync(result)
+}
+
+export function createReviewJsonBlob(result: ConversionResult) {
+  const payload = {
+    schema: 'extractmint.review.v1',
+    createdAt: new Date().toISOString(),
+    fileName: result.fileName,
+    fileType: result.fileType,
+    fileMeta: result.fileMeta,
+    processedAt: result.processedAt,
+    confidence: result.confidence,
+    summary: result.summary,
+    rowCount: result.rows.length,
+    totals: {
+      amount: result.rows.reduce((sum, row) => sum + (row.amount ?? 0), 0),
+      withdrawal: result.rows.reduce((sum, row) => sum + (row.withdrawal ?? 0), 0),
+      deposit: result.rows.reduce((sum, row) => sum + (row.deposit ?? 0), 0),
+      balanceCount: result.rows.reduce((sum, row) => sum + (row.balance !== undefined ? 1 : 0), 0),
+    },
+    validation: result.validation,
+  }
+
+  return new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json;charset=utf-8',
+  })
+}
+
+export async function createReviewPackZipBlob(results: ConversionResult[]) {
+  const JSZip = (await import('jszip')).default
+  const zip = new JSZip()
+  const root = zip.folder('extractmint-review-pack') ?? zip
+
+  for (const result of results) {
+    const baseName = result.fileName.replace(/\.[^.]+$/, '') || 'extractmint'
+    const xlsx = await createExcelBlob(result)
+    const json = createReviewJsonBlob(result)
+    root.file(`${baseName}.xlsx`, xlsx)
+    root.file(`${baseName}.extractmint-review.json`, json)
+  }
+
+  return zip.generateAsync({ type: 'blob' })
 }
 
 async function createPdfBlobAsync(result: ConversionResult) {
@@ -559,7 +635,12 @@ function trimTrailingEmptyColumns(columns: string[]) {
   return next
 }
 
-function parseRawText(rawText: string, fileName: string, fileType: string): ConversionResult {
+function parseRawText(
+  rawText: string,
+  fileName: string,
+  fileType: string,
+  fileMeta: ConversionResult['fileMeta'],
+): ConversionResult {
   const normalized = rawText
     .replace(/\u00a0/g, ' ')
     .replace(/ {2,}/g, ' ')
@@ -584,6 +665,7 @@ function parseRawText(rawText: string, fileName: string, fileType: string): Conv
   return {
     fileName,
     fileType,
+    fileMeta,
     rawText: normalized,
     rows: fallbackRows,
     confidence,
@@ -591,6 +673,14 @@ function parseRawText(rawText: string, fileName: string, fileType: string): Conv
     processedAt: new Date().toISOString(),
     summary,
   }
+}
+
+async function sha256Hex(file: File) {
+  if (!globalThis.crypto?.subtle) return undefined
+  const buffer = await file.arrayBuffer()
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer)
+  const bytes = new Uint8Array(digest)
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 function parseLine(line: string, lineNumber: number): ExtractedRow[] {

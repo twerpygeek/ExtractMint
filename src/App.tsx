@@ -25,6 +25,8 @@ import {
   createDocxBlob,
   createExcelBlob,
   createPdfBlob,
+  createReviewJsonBlob,
+  createReviewPackZipBlob,
   createSampleResult,
   type ConversionResult,
   type ProgressEvent,
@@ -177,6 +179,54 @@ function App() {
     anchor.download = `${baseName}.${format}`
     anchor.click()
     URL.revokeObjectURL(url)
+  }
+
+  const downloadReviewJson = () => {
+    if (!activeResult) return
+    const blob = createReviewJsonBlob(activeResult)
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    const baseName = activeResult.fileName.replace(/\.[^.]+$/, '') || 'extractmint'
+    anchor.href = url
+    anchor.download = `${baseName}.extractmint-review.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadReviewPack = async () => {
+    if (results.length === 0) return
+    setIsProcessing(true)
+    setProgress({
+      fileName: results.length === 1 ? results[0].fileName : `${results.length} files`,
+      stage: 'exporting',
+      percent: 92,
+      detail: 'Building review pack ZIP',
+    })
+    try {
+      const blob = await createReviewPackZipBlob(results)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const stamp = new Date().toISOString().slice(0, 10)
+      anchor.href = url
+      anchor.download = `extractmint-review-pack-${stamp}.zip`
+      anchor.click()
+      URL.revokeObjectURL(url)
+      setProgress({
+        fileName: `${results.length} files`,
+        stage: 'complete',
+        percent: 100,
+        detail: 'Review pack downloaded',
+      })
+    } catch (error) {
+      setProgress({
+        fileName: `${results.length} files`,
+        stage: 'error',
+        percent: 100,
+        detail: error instanceof Error ? error.message : 'Review pack export failed',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   return (
@@ -384,6 +434,14 @@ function App() {
               <button onClick={() => void downloadBlob('xlsx')} disabled={!activeResult}>
                 <FileSpreadsheet size={16} />
                 Excel
+              </button>
+              <button onClick={downloadReviewJson} disabled={!activeResult}>
+                <ShieldCheck size={16} />
+                Review JSON
+              </button>
+              <button onClick={() => void downloadReviewPack()} disabled={results.length === 0}>
+                <FileArchive size={16} />
+                Review pack (ZIP)
               </button>
               <button onClick={() => void downloadBlob('docx')} disabled={!activeResult}>
                 <FileText size={16} />
