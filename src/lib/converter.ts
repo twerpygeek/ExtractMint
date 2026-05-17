@@ -46,9 +46,16 @@ export type ValidationSummary = {
   issues: ValidationIssue[]
 }
 
+export type FileMeta = {
+  size: number
+  lastModified: number
+  sha256: string
+}
+
 export type ConversionResult = {
   fileName: string
   fileType: string
+  fileMeta?: FileMeta
   rawText: string
   rows: ExtractedRow[]
   confidence: number
@@ -84,7 +91,7 @@ export async function convertFiles(files: File[], onProgress: ProgressCallback) 
       detail: 'Reading file contents',
     })
 
-    const rawText = await extractText(file, (event) => {
+    const extracted = await extractText(file, (event) => {
       onProgress({
         ...event,
         percent: Math.min(
@@ -101,7 +108,14 @@ export async function convertFiles(files: File[], onProgress: ProgressCallback) 
       detail: 'Finding rows, totals, and document signals',
     })
 
-    results.push(parseRawText(rawText, file.name, file.type || extensionOf(file.name)))
+    results.push(
+      parseRawText(
+        extracted.text,
+        file.name,
+        file.type || extensionOf(file.name),
+        extracted.fileMeta,
+      ),
+    )
   }
 
   return results
@@ -118,10 +132,14 @@ Statement period Apr 01 2026 - Apr 30 2026
 04/15/2026 PAYROLL RUN (7,840.00) 28,713.10
 04/22/2026 WIRE INCOMING NORTHSTAR 9,600.00 38,313.10
 04/28/2026 TOTAL FEES (45.00) 38,268.10
-Ending balance 38,268.10
+  Ending balance 38,268.10
 `
 
-  return parseRawText(sample, 'sample-bank-statement.pdf', 'application/pdf')
+  return parseRawText(sample, 'sample-bank-statement.pdf', 'application/pdf', {
+    size: sample.length,
+    lastModified: Date.now(),
+    sha256: 'sample',
+  })
 }
 
 export async function createExcelBlob(result: ConversionResult) {
@@ -134,6 +152,9 @@ export async function createExcelBlob(result: ConversionResult) {
   summary.columns = [
     { header: 'File', key: 'file', width: 34 },
     { header: 'Kind', key: 'kind', width: 18 },
+    { header: 'SHA-256', key: 'sha256', width: 66 },
+    { header: 'Size (bytes)', key: 'size', width: 14 },
+    { header: 'Last modified', key: 'lastModified', width: 22 },
     { header: 'Confidence', key: 'confidence', width: 16 },
     { header: 'Total', key: 'total', width: 16 },
     { header: 'Validation', key: 'validation', width: 18 },
@@ -143,6 +164,11 @@ export async function createExcelBlob(result: ConversionResult) {
   summary.addRow({
     file: result.fileName,
     kind: result.summary.documentKind,
+    sha256: result.fileMeta?.sha256 ?? '',
+    size: result.fileMeta?.size ?? '',
+    lastModified: result.fileMeta?.lastModified
+      ? new Date(result.fileMeta.lastModified).toISOString()
+      : '',
     confidence: `${result.confidence}%`,
     total: result.summary.total,
     validation: validationLabel(result.validation.status),
@@ -249,6 +275,22 @@ export function createCsvBlob(result: ConversionResult) {
   return new Blob([csv], { type: 'text/csv;charset=utf-8' })
 }
 
+export function createReviewJsonBlob(result: ConversionResult) {
+  const payload = {
+    generatedBy: 'ExtractMint',
+    generatedAt: new Date().toISOString(),
+    file: {
+      name: result.fileName,
+      type: result.fileType,
+      meta: result.fileMeta ?? null,
+    },
+    summary: result.summary,
+    validation: result.validation,
+    rowsPreview: result.rows.slice(0, 50),
+  }
+
+  return new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+}
 export async function createDocxBlob(result: ConversionResult) {
   const {
     Document,
@@ -390,33 +432,41 @@ async function createPdfBlobAsync(result: ConversionResult) {
 
 async function extractText(file: File, onProgress: ProgressCallback) {
   const extension = extensionOf(file.name)
-
-  if (file.type === 'application/pdf' || extension === 'pdf') {
-    return extractPdfText(file, onProgress)
+  const buffer = await file.arrayBuffer()
+  const fileMeta: FileMeta = {
+    size: file.size,
+    lastModified: file.lastModified,
+    sha256: await sha256Hex(buffer),
   }
 
-  if (file.type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff'].includes(extension)) {
-    return extractImageText(file, onProgress)
+  if (file.type === 'application/pdf' || extension === 'pdf') {
+    return { text: await extractPdfText(buffer, file.name, onProgress), fileMeta }
+  }
+
+  if (
+    file.type.startsWith('image/') ||
+    ['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff'].includes(extension)
+  ) {
+    return { text: await extractImageText(file, onProgress), fileMeta }
   }
 
   if (extension === 'docx') {
-    return extractDocxText(file)
+    return { text: await extractDocxText(buffer), fileMeta }
   }
 
   if (['xlsx', 'xls'].includes(extension)) {
-    return extractWorkbookText(file)
+    return { text: await extractWorkbookText(buffer), fileMeta }
   }
 
-  return file.text()
+  return { text: new TextDecoder().decode(buffer), fileMeta }
 }
 
-async function extractPdfText(file: File, onProgress: ProgressCallback) {
+async function extractPdfText(buffer: ArrayBuffer, fileName: string, onProgress: ProgressCallback) {
   const [pdfjs, worker] = await Promise.all([
     import('pdfjs-dist'),
     import('pdfjs-dist/build/pdf.worker.mjs?url'),
   ])
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default
-  const buffer = await file.arrayBuffer()
   const pdf = await pdfjs.getDocument({ data: buffer }).promise
   const chunks: string[] = []
 
@@ -426,7 +476,7 @@ async function extractPdfText(file: File, onProgress: ProgressCallback) {
     const text = formatPdfTextItems(content.items)
     chunks.push(`Page ${pageNumber}\n${text}`)
     onProgress({
-      fileName: file.name,
+      fileName,
       stage: 'reading',
       percent: Math.round((pageNumber / pdf.numPages) * 72),
       detail: `Read page ${pageNumber} of ${pdf.numPages}`,
@@ -454,16 +504,14 @@ async function extractImageText(file: File, onProgress: ProgressCallback) {
   return result.data.text
 }
 
-async function extractDocxText(file: File) {
+async function extractDocxText(buffer: ArrayBuffer) {
   const mammoth = await import('mammoth/mammoth.browser')
-  const buffer = await file.arrayBuffer()
   const result = await mammoth.extractRawText({ arrayBuffer: buffer })
   return result.value
 }
 
-async function extractWorkbookText(file: File) {
+async function extractWorkbookText(buffer: ArrayBuffer) {
   const ExcelJS = await import('exceljs')
-  const buffer = await file.arrayBuffer()
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.load(buffer)
   const chunks: string[] = []
@@ -475,6 +523,13 @@ async function extractWorkbookText(file: File) {
     })
   })
   return chunks.join('\n')
+}
+
+async function sha256Hex(buffer: ArrayBuffer) {
+  const digest = await crypto.subtle.digest('SHA-256', buffer)
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 type PositionedText = {
@@ -559,7 +614,12 @@ function trimTrailingEmptyColumns(columns: string[]) {
   return next
 }
 
-function parseRawText(rawText: string, fileName: string, fileType: string): ConversionResult {
+function parseRawText(
+  rawText: string,
+  fileName: string,
+  fileType: string,
+  fileMeta?: FileMeta,
+): ConversionResult {
   const normalized = rawText
     .replace(/\u00a0/g, ' ')
     .replace(/ {2,}/g, ' ')
@@ -584,6 +644,7 @@ function parseRawText(rawText: string, fileName: string, fileType: string): Conv
   return {
     fileName,
     fileType,
+    fileMeta,
     rawText: normalized,
     rows: fallbackRows,
     confidence,

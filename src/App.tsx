@@ -25,6 +25,7 @@ import {
   createDocxBlob,
   createExcelBlob,
   createPdfBlob,
+  createReviewJsonBlob,
   createSampleResult,
   type ConversionResult,
   type ProgressEvent,
@@ -82,7 +83,7 @@ const faqItems = [
   {
     question: 'What files can I download?',
     answer:
-      'You can download Excel XLSX, CSV, Google Docs-ready DOCX, and PDF summaries from the same extracted data.',
+      'You can download Excel XLSX, CSV, Google Docs-ready DOCX, PDF summaries, plus a review pack (XLSX + JSON validation report with a SHA-256 fingerprint).',
   },
   {
     question: 'Will scanned statements always work?',
@@ -160,6 +161,17 @@ function App() {
     void processFiles(event.dataTransfer.files)
   }
 
+  const baseName = activeResult?.fileName.replace(/\.[^.]+$/, '') || 'extractmint'
+
+  const saveBlob = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   const downloadBlob = async (format: 'xlsx' | 'csv' | 'docx' | 'pdf') => {
     if (!activeResult) return
 
@@ -170,13 +182,17 @@ function App() {
       pdf: createPdfBlob,
     }
     const blob = await creators[format](activeResult)
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    const baseName = activeResult.fileName.replace(/\.[^.]+$/, '') || 'extractmint'
-    anchor.href = url
-    anchor.download = `${baseName}.${format}`
-    anchor.click()
-    URL.revokeObjectURL(url)
+    saveBlob(blob, `${baseName}.${format}`)
+  }
+
+  const downloadReviewPack = async () => {
+    if (!activeResult) return
+    const [xlsx, report] = await Promise.all([
+      createExcelBlob(activeResult),
+      Promise.resolve(createReviewJsonBlob(activeResult)),
+    ])
+    saveBlob(xlsx, `${baseName}.xlsx`)
+    saveBlob(report, `${baseName}.extractmint-review.json`)
   }
 
   return (
@@ -384,6 +400,10 @@ function App() {
               <button onClick={() => void downloadBlob('xlsx')} disabled={!activeResult}>
                 <FileSpreadsheet size={16} />
                 Excel
+              </button>
+              <button onClick={() => void downloadReviewPack()} disabled={!activeResult}>
+                <ShieldCheck size={16} />
+                Review pack
               </button>
               <button onClick={() => void downloadBlob('docx')} disabled={!activeResult}>
                 <FileText size={16} />
