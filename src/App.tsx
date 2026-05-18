@@ -536,7 +536,7 @@ function App() {
                     <strong>
                       {new Intl.NumberFormat('en-US', {
                         style: 'currency',
-                        currency: 'USD',
+                        currency: activeResult?.currencyCode ?? 'USD',
                       }).format(activeResult?.summary.total ?? totals.amount)}
                     </strong>
                   </div>
@@ -580,8 +580,8 @@ function App() {
                               {row.description}
                               {review.note ? <small className="review-note">{review.note}</small> : null}
                             </td>
-                            <td>{formatAmount(row.amount)}</td>
-                            <td>{formatAmount(row.balance)}</td>
+                            <td>{formatAmount(row.amount, activeResult?.currencyCode)}</td>
+                            <td>{formatAmount(row.balance, activeResult?.currencyCode)}</td>
                             <td>
                               <span className={`review-pill ${review.status.toLowerCase()}`}>
                                 {review.status}
@@ -771,11 +771,11 @@ function LogoMark() {
   )
 }
 
-function formatAmount(value?: number) {
+function formatAmount(value?: number, currencyCode: string = 'USD') {
   if (value === undefined || Number.isNaN(value)) return '-'
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: currencyCode || 'USD',
   }).format(value)
 }
 

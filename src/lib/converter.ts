@@ -49,6 +49,7 @@ export type ValidationSummary = {
 export type ConversionResult = {
   fileName: string
   fileType: string
+  currencyCode: string
   fileMeta: {
     size: number
     lastModified: number
@@ -158,6 +159,7 @@ export async function createExcelBlob(result: ConversionResult) {
   summary.columns = [
     { header: 'File', key: 'file', width: 34 },
     { header: 'Kind', key: 'kind', width: 18 },
+    { header: 'Currency', key: 'currency', width: 12 },
     { header: 'Confidence', key: 'confidence', width: 16 },
     { header: 'Total', key: 'total', width: 16 },
     { header: 'Validation', key: 'validation', width: 18 },
@@ -170,6 +172,7 @@ export async function createExcelBlob(result: ConversionResult) {
   summary.addRow({
     file: result.fileName,
     kind: result.summary.documentKind,
+    currency: result.currencyCode,
     confidence: `${result.confidence}%`,
     total: result.summary.total,
     validation: validationLabel(result.validation.status),
@@ -185,6 +188,7 @@ export async function createExcelBlob(result: ConversionResult) {
     summary.addRow({
       file: issue.rowIndex !== undefined ? `Row ${issue.rowIndex + 1}` : 'Document',
       kind: issue.severity,
+      currency: '',
       confidence: '',
       total: issue.delta ?? '',
       validation: issue.message,
@@ -330,7 +334,7 @@ export function createQboBlob(result: ConversionResult) {
       '<SEVERITY>INFO',
       '</STATUS>',
       '<STMTRS>',
-      '<CURDEF>USD',
+      `<CURDEF>${result.currencyCode || 'USD'}`,
       '<BANKACCTFROM>',
       '<BANKID>0000',
       '<ACCTID>0000000000',
@@ -413,11 +417,11 @@ export async function createDocxBlob(result: ConversionResult) {
             row.date ?? '',
             row.description,
             row.reference ?? '',
-            money(row.withdrawal),
-            money(row.deposit),
-            money(row.tax),
-            money(row.amount),
-            money(row.balance),
+            money(row.withdrawal, result.currencyCode),
+            money(row.deposit, result.currencyCode),
+            money(row.tax, result.currencyCode),
+            money(row.amount, result.currencyCode),
+            money(row.balance, result.currencyCode),
             rowReviewStatus(result.validation, index),
             rowReviewNotes(result.validation, index),
             row.category,
@@ -462,6 +466,7 @@ export function createReviewJsonBlob(result: ConversionResult) {
     createdAt: new Date().toISOString(),
     fileName: result.fileName,
     fileType: result.fileType,
+    currencyCode: result.currencyCode,
     fileMeta: result.fileMeta,
     processedAt: result.processedAt,
     confidence: result.confidence,
@@ -537,9 +542,9 @@ async function createPdfBlobAsync(result: ConversionResult) {
     }
     pdf.text(row.date ?? '-', margin, y)
     pdf.text(pdf.splitTextToSize(row.description, 210), margin + 82, y)
-    pdf.text(money(row.withdrawal), margin + 310, y)
-    pdf.text(money(row.deposit), margin + 390, y)
-    pdf.text(money(row.balance), margin + 470, y)
+    pdf.text(money(row.withdrawal, result.currencyCode), margin + 310, y)
+    pdf.text(money(row.deposit, result.currencyCode), margin + 390, y)
+    pdf.text(money(row.balance, result.currencyCode), margin + 470, y)
     const note = rowReviewNotes(result.validation, index)
     if (note) {
       y += 12
@@ -747,13 +752,15 @@ function parseRawText(
       ? structuredRows
       : lines.flatMap((line, index) => parseLine(line, index + 1))
   const fallbackRows = rows.length > 0 ? rows : buildFallbackRows(lines)
-  const validation = validateBalances(fallbackRows)
+  const currencyCode = detectCurrencyCode(normalized, fileName)
+  const validation = validateBalances(fallbackRows, currencyCode)
   const summary = summarize(lines, fallbackRows, fileName, validation)
   const confidence = scoreConfidence(fileType, fallbackRows, normalized, validation)
 
   return {
     fileName,
     fileType,
+    currencyCode,
     fileMeta,
     rawText: normalized,
     rows: fallbackRows,
@@ -1022,7 +1029,7 @@ function scoreConfidence(
   return Math.max(20, Math.min(98, score))
 }
 
-function validateBalances(rows: ExtractedRow[]): ValidationSummary {
+function validateBalances(rows: ExtractedRow[], currencyCode: string): ValidationSummary {
   const issues: ValidationIssue[] = []
   const rowsWithBalances = rows
     .map((row, index) => ({ row, index }))
@@ -1059,7 +1066,7 @@ function validateBalances(rows: ExtractedRow[]): ValidationSummary {
         expectedBalance,
         actualBalance,
         delta,
-        message: `Expected balance ${money(expectedBalance)} after ${money(amount)}, but found ${money(actualBalance)}.`,
+        message: `Expected balance ${money(expectedBalance, currencyCode)} after ${money(amount, currencyCode)}, but found ${money(actualBalance, currencyCode)}.`,
       })
     }
   }
@@ -1164,12 +1171,25 @@ function extensionOf(fileName: string) {
   return fileName.split('.').pop()?.toLowerCase() ?? ''
 }
 
-function money(value?: number) {
+function money(value?: number, currencyCode = 'USD') {
   if (value === undefined || Number.isNaN(value)) return '-'
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: currencyCode || 'USD',
   }).format(value)
+}
+
+function detectCurrencyCode(rawText: string, fileName: string) {
+  const combined = `${fileName}\n${rawText}`.toLowerCase()
+  if (/\bmyr\b|\brm\b/.test(combined) || combined.includes('rm ')) return 'MYR'
+  if (/\bsgd\b/.test(combined) || combined.includes('s$')) return 'SGD'
+  if (/\beur\b|€/.test(combined)) return 'EUR'
+  if (/\bgbp\b|£/.test(combined)) return 'GBP'
+  if (/\bjpy\b|¥/.test(combined)) return 'JPY'
+  if (/\baud\b/.test(combined) || combined.includes('a$')) return 'AUD'
+  if (/\bcad\b/.test(combined) || combined.includes('c$')) return 'CAD'
+  if (/\busd\b|\$/.test(combined)) return 'USD'
+  return 'USD'
 }
 
 function qboFormatDate(date: Date) {
