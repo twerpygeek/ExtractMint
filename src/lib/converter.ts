@@ -50,6 +50,11 @@ export type ConversionResult = {
   fileName: string
   fileType: string
   currencyCode: string
+  statementPeriod?: {
+    start?: string
+    end?: string
+    source: 'explicit' | 'inferred'
+  }
   fileMeta: {
     size: number
     lastModified: number
@@ -78,6 +83,15 @@ const amountPattern =
 
 export function revalidateRows(rows: ExtractedRow[], currencyCode: string) {
   return validateBalances(rows, currencyCode)
+}
+
+export function refreshStatementPeriod(
+  rows: ExtractedRow[],
+  previous?: ConversionResult['statementPeriod'],
+): ConversionResult['statementPeriod'] | undefined {
+  if (previous?.source === 'explicit') return previous
+  const inferred = inferStatementPeriodFromRows(rows)
+  return inferred ? { ...inferred, source: 'inferred' } : undefined
 }
 
 export async function convertFiles(files: File[], onProgress: ProgressCallback) {
@@ -164,6 +178,8 @@ export async function createExcelBlob(result: ConversionResult) {
     { header: 'File', key: 'file', width: 34 },
     { header: 'Kind', key: 'kind', width: 18 },
     { header: 'Currency', key: 'currency', width: 12 },
+    { header: 'Statement Start', key: 'statementStart', width: 18 },
+    { header: 'Statement End', key: 'statementEnd', width: 18 },
     { header: 'Confidence', key: 'confidence', width: 16 },
     { header: 'Total', key: 'total', width: 16 },
     { header: 'Validation', key: 'validation', width: 18 },
@@ -177,6 +193,8 @@ export async function createExcelBlob(result: ConversionResult) {
     file: result.fileName,
     kind: result.summary.documentKind,
     currency: result.currencyCode,
+    statementStart: result.statementPeriod?.start ?? '',
+    statementEnd: result.statementPeriod?.end ?? '',
     confidence: `${result.confidence}%`,
     total: result.summary.total,
     validation: validationLabel(result.validation.status),
@@ -259,6 +277,8 @@ export async function createCombinedExcelBlob(results: ConversionResult[]) {
     { header: 'File', key: 'file', width: 34 },
     { header: 'Kind', key: 'kind', width: 18 },
     { header: 'Currency', key: 'currency', width: 12 },
+    { header: 'Statement Start', key: 'statementStart', width: 18 },
+    { header: 'Statement End', key: 'statementEnd', width: 18 },
     { header: 'Rows', key: 'rows', width: 10 },
     { header: 'Confidence', key: 'confidence', width: 16 },
     { header: 'Opening Balance', key: 'opening', width: 18 },
@@ -295,6 +315,8 @@ export async function createCombinedExcelBlob(results: ConversionResult[]) {
       file: result.fileName,
       kind: result.summary.documentKind,
       currency: result.currencyCode,
+      statementStart: result.statementPeriod?.start ?? '',
+      statementEnd: result.statementPeriod?.end ?? '',
       rows: result.rows.length,
       confidence: `${result.confidence}%`,
       opening: opening ?? '',
@@ -447,7 +469,7 @@ function uniqueSheetName(fileName: string, usedNames: Set<string>) {
 }
 
 export function createQboBlob(result: ConversionResult) {
-  const { startDate, endDate } = qboDateRange(result.rows)
+  const { startDate, endDate } = qboDateRange(result.rows, result.statementPeriod)
   const openingBalance = result.validation.openingBalance
   const closingBalance = result.validation.closingBalance ?? qboLastBalance(result.rows)
 
@@ -597,6 +619,15 @@ export async function createDocxBlob(result: ConversionResult) {
             heading: HeadingLevel.TITLE,
           }),
           new Paragraph(`Source file: ${result.fileName}`),
+          ...(result.statementPeriod?.start || result.statementPeriod?.end
+            ? [
+                new Paragraph(
+                  `Statement period: ${[result.statementPeriod.start, result.statementPeriod.end]
+                    .filter(Boolean)
+                    .join(' to ')}`,
+                ),
+              ]
+            : []),
           new Paragraph(`Detected type: ${result.summary.documentKind}`),
           new Paragraph(`Confidence: ${result.confidence}%`),
           new Paragraph(`Validation: ${validationLabel(result.validation.status)}`),
@@ -625,6 +656,7 @@ export function createReviewJsonBlob(result: ConversionResult) {
     fileName: result.fileName,
     fileType: result.fileType,
     currencyCode: result.currencyCode,
+    statementPeriod: result.statementPeriod,
     fileMeta: result.fileMeta,
     processedAt: result.processedAt,
     confidence: result.confidence,
@@ -675,6 +707,16 @@ async function createPdfBlobAsync(result: ConversionResult) {
   pdf.setFontSize(10)
   pdf.text(`Source: ${result.fileName}`, margin, y)
   y += 16
+  if (result.statementPeriod?.start || result.statementPeriod?.end) {
+    pdf.text(
+      `Statement period: ${[result.statementPeriod.start, result.statementPeriod.end]
+        .filter(Boolean)
+        .join(' to ')}`,
+      margin,
+      y,
+    )
+    y += 16
+  }
   pdf.text(`Detected type: ${result.summary.documentKind}`, margin, y)
   y += 16
   pdf.text(`Confidence: ${result.confidence}%`, margin, y)
@@ -910,6 +952,7 @@ function parseRawText(
       ? structuredRows
       : lines.flatMap((line, index) => parseLine(line, index + 1))
   const fallbackRows = rows.length > 0 ? rows : buildFallbackRows(lines)
+  const statementPeriod = detectStatementPeriod(lines, fallbackRows)
   const currencyCode = detectCurrencyCode(normalized, fileName)
   const validation = validateBalances(fallbackRows, currencyCode)
   const summary = summarize(lines, fallbackRows, fileName, validation)
@@ -919,6 +962,7 @@ function parseRawText(
     fileName,
     fileType,
     currencyCode,
+    statementPeriod,
     fileMeta,
     rawText: normalized,
     rows: fallbackRows,
@@ -1097,6 +1141,91 @@ function parseMoneyCell(value: string) {
   if (!text) return undefined
   const match = text.match(amountPattern)?.at(-1)
   return match ? parseAmount(match) : undefined
+}
+
+const dateGlobalPattern = new RegExp(datePattern.source, 'gi')
+
+function extractDatesFromLine(line: string) {
+  const matches = Array.from(line.matchAll(dateGlobalPattern), (match) => match[0]).filter(Boolean)
+  return Array.from(new Set(matches.map((value) => value.trim()))).slice(0, 6)
+}
+
+function parseDateToIso(input: string) {
+  const value = input.trim()
+  if (!value) return undefined
+
+  const iso = value.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/)
+  if (iso) {
+    const year = iso[1]
+    const month = Number(iso[2])
+    const day = Number(iso[3])
+    if (month < 1 || month > 12 || day < 1 || day > 31) return undefined
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  }
+
+  const slash = value.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/)
+  if (slash) {
+    const first = Number(slash[1])
+    const second = Number(slash[2])
+    const year = slash[3].length === 2 ? `20${slash[3]}` : slash[3]
+    const [month, day] = first > 12 ? [second, first] : [first, second]
+    if (month < 1 || month > 12 || day < 1 || day > 31) return undefined
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  }
+
+  const monthName = value.match(
+    /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(\d{1,2}),?\s+(\d{2,4})$/i,
+  )
+  if (monthName) {
+    const monthKey = monthName[1].slice(0, 3).toLowerCase()
+    const day = Number(monthName[2])
+    const year = monthName[3].length === 2 ? `20${monthName[3]}` : monthName[3]
+    const monthIndex = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(
+      monthKey,
+    )
+    if (monthIndex === -1 || day < 1 || day > 31) return undefined
+    const month = monthIndex + 1
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  }
+
+  return undefined
+}
+
+function normalizeIsoRange(start?: string, end?: string) {
+  if (!start && !end) return undefined
+  if (start && end && start > end) return { start: end, end: start }
+  return { start, end }
+}
+
+function detectStatementPeriod(lines: string[], rows: ExtractedRow[]): ConversionResult['statementPeriod'] | undefined {
+  for (const line of lines) {
+    const text = line.replace(/\t/g, ' ').replace(/\s+/g, ' ').trim()
+    if (!text) continue
+    if (!/(statement\s*(period|from|to)|period\s*(from|to)|for\s+the\s+period)/i.test(text)) continue
+
+    const dates = extractDatesFromLine(text)
+    if (dates.length < 2) continue
+    const first = parseDateToIso(dates[0] ?? '')
+    const second = parseDateToIso(dates[1] ?? '')
+    const normalized = normalizeIsoRange(first, second)
+    if (normalized?.start || normalized?.end) {
+      return { ...normalized, source: 'explicit' }
+    }
+  }
+
+  const inferred = inferStatementPeriodFromRows(rows)
+  return inferred ? { ...inferred, source: 'inferred' } : undefined
+}
+
+function inferStatementPeriodFromRows(rows: ExtractedRow[]) {
+  const parsed = rows
+    .map((row) => parseDateToIso(row.date ?? ''))
+    .filter((value): value is string => Boolean(value))
+    .sort()
+  if (parsed.length === 0) return undefined
+  const start = parsed[0]
+  const end = parsed[parsed.length - 1]
+  return normalizeIsoRange(start, end)
 }
 
 function classifyStructuredRow(description: string, amount?: number) {
@@ -1432,14 +1561,18 @@ function qboTransaction(row: ExtractedRow, index: number) {
   ].join('\n')
 }
 
-function qboDateRange(rows: ExtractedRow[]) {
+function qboDateRange(rows: ExtractedRow[], period?: ConversionResult['statementPeriod']) {
+  const explicitStart = period?.start ? qboGuessPostedDate(period.start) : undefined
+  const explicitEnd = period?.end ? qboGuessPostedDate(period.end) : undefined
+
   const postedDates = rows
     .map((row) => qboGuessPostedDate(row.date))
     .filter((value): value is string => Boolean(value))
     .sort()
+
   return {
-    startDate: postedDates[0],
-    endDate: postedDates[postedDates.length - 1],
+    startDate: explicitStart ?? postedDates[0],
+    endDate: explicitEnd ?? postedDates[postedDates.length - 1],
   }
 }
 

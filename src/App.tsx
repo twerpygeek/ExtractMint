@@ -30,6 +30,7 @@ import {
   createReviewJsonBlob,
   createReviewPackZipBlob,
   createSampleResult,
+  refreshStatementPeriod,
   revalidateRows,
   type ConversionResult,
   type ProgressEvent,
@@ -119,6 +120,12 @@ function App() {
 
   const activeResult = results[activeIndex] ?? results[0]
 
+  const statementPeriodLabel = (period?: ConversionResult['statementPeriod']) => {
+    if (!period?.start && !period?.end) return '—'
+    if (period.start && period.end && period.start !== period.end) return `${period.start} → ${period.end}`
+    return period.start ?? period.end ?? '—'
+  }
+
   const parseMoneyInput = (value: string) => {
     const text = value.trim()
     if (!text) return undefined
@@ -185,7 +192,12 @@ function App() {
 
       const nextValidation = revalidateRows(nextRows, target.currencyCode || 'USD')
       const nextResults = [...previous]
-      nextResults[resultIndex] = { ...target, rows: nextRows, validation: nextValidation }
+      nextResults[resultIndex] = {
+        ...target,
+        rows: nextRows,
+        validation: nextValidation,
+        statementPeriod: refreshStatementPeriod(nextRows, target.statementPeriod),
+      }
       return nextResults
     })
   }
@@ -678,8 +690,8 @@ function App() {
                     <strong>{activeResult?.summary.documentKind ?? 'Statement'}</strong>
                   </div>
                   <div>
-                    <span>Export target</span>
-                    <strong>Excel, DOCX, PDF</strong>
+                    <span>Statement period</span>
+                    <strong>{statementPeriodLabel(activeResult?.statementPeriod)}</strong>
                   </div>
                   <div className="validation-card">
                     <span>Balance check</span>
