@@ -284,6 +284,95 @@ export function createCsvBlob(result: ConversionResult) {
   return new Blob([csv], { type: 'text/csv;charset=utf-8' })
 }
 
+export function createQboBlob(result: ConversionResult) {
+  const { startDate, endDate } = qboDateRange(result.rows)
+  const openingBalance = result.validation.openingBalance
+  const closingBalance = result.validation.closingBalance ?? qboLastBalance(result.rows)
+
+  const transactions = result.rows
+    .map((row, index) => qboTransaction(row, index))
+    .filter((entry): entry is string => Boolean(entry))
+    .join('\n')
+
+  const now = new Date()
+  const dtServer = qboFormatDateTime(now)
+  const fileId = qboUid(result.fileMeta.sha256 ?? `${result.fileName}-${result.processedAt}`)
+
+  const parts: string[] = []
+  parts.push(
+    [
+      'OFXHEADER:100',
+      'DATA:OFXSGML',
+      'VERSION:102',
+      'SECURITY:NONE',
+      'ENCODING:USASCII',
+      'CHARSET:1252',
+      'COMPRESSION:NONE',
+      'OLDFILEUID:NONE',
+      `NEWFILEUID:${fileId}`,
+      '',
+      '<OFX>',
+      '<SIGNONMSGSRSV1>',
+      '<SONRS>',
+      '<STATUS>',
+      '<CODE>0',
+      '<SEVERITY>INFO',
+      '</STATUS>',
+      `<DTSERVER>${dtServer}`,
+      '<LANGUAGE>ENG',
+      '</SONRS>',
+      '</SIGNONMSGSRSV1>',
+      '<BANKMSGSRSV1>',
+      '<STMTTRNRS>',
+      '<TRNUID>1',
+      '<STATUS>',
+      '<CODE>0',
+      '<SEVERITY>INFO',
+      '</STATUS>',
+      '<STMTRS>',
+      '<CURDEF>USD',
+      '<BANKACCTFROM>',
+      '<BANKID>0000',
+      '<ACCTID>0000000000',
+      '<ACCTTYPE>CHECKING',
+      '</BANKACCTFROM>',
+      '<BANKTRANLIST>',
+      startDate ? `<DTSTART>${startDate}` : '',
+      endDate ? `<DTEND>${endDate}` : '',
+      transactions,
+      '</BANKTRANLIST>',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  )
+
+  if (closingBalance !== undefined) {
+    parts.push(
+      [
+        '<LEDGERBAL>',
+        `<BALAMT>${qboNumber(closingBalance)}`,
+        endDate ? `<DTASOF>${endDate}` : `<DTASOF>${qboFormatDate(now)}`,
+        '</LEDGERBAL>',
+      ].join('\n'),
+    )
+  }
+
+  if (openingBalance !== undefined) {
+    parts.push(
+      [
+        '<AVAILBAL>',
+        `<BALAMT>${qboNumber(openingBalance)}`,
+        startDate ? `<DTASOF>${startDate}` : `<DTASOF>${qboFormatDate(now)}`,
+        '</AVAILBAL>',
+      ].join('\n'),
+    )
+  }
+
+  parts.push(['</STMTRS>', '</STMTTRNRS>', '</BANKMSGSRSV1>', '</OFX>', ''].join('\n'))
+
+  return new Blob([parts.join('\n')], { type: 'application/x-ofx' })
+}
+
 export async function createDocxBlob(result: ConversionResult) {
   const {
     Document,
@@ -1081,4 +1170,105 @@ function money(value?: number) {
     style: 'currency',
     currency: 'USD',
   }).format(value)
+}
+
+function qboFormatDate(date: Date) {
+  const year = String(date.getFullYear())
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}${month}${day}`
+}
+
+function qboFormatDateTime(date: Date) {
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  const second = String(date.getSeconds()).padStart(2, '0')
+  return `${qboFormatDate(date)}${hour}${minute}${second}`
+}
+
+function qboNumber(value: number) {
+  if (!Number.isFinite(value)) return '0.00'
+  return value.toFixed(2)
+}
+
+function qboUid(seed: string) {
+  let hash = 2166136261
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `UID-${Math.abs(hash).toString(16)}`
+}
+
+function qboToAscii(value: string) {
+  return value.replace(/[^\x20-\x7E]/g, ' ')
+}
+
+function qboText(value: string) {
+  return qboToAscii(value).replace(/[<>\r\n]/g, ' ').replace(/&/g, 'and').trim()
+}
+
+function qboGuessPostedDate(value?: string) {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  const iso = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/)
+  if (iso) return `${iso[1]}${iso[2].padStart(2, '0')}${iso[3].padStart(2, '0')}`
+
+  const slash = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/)
+  if (!slash) return undefined
+  const first = Number(slash[1])
+  const second = Number(slash[2])
+  const year = slash[3].length === 2 ? `20${slash[3]}` : slash[3]
+  const [month, day] = first > 12 ? [second, first] : [first, second]
+  if (month < 1 || month > 12 || day < 1 || day > 31) return undefined
+  return `${year}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`
+}
+
+function qboAmount(row: ExtractedRow) {
+  if (row.amount !== undefined && Number.isFinite(row.amount)) return row.amount
+  const deposit = row.deposit ?? 0
+  const withdrawal = row.withdrawal ?? 0
+  const tax = row.tax ?? 0
+  return deposit - withdrawal - tax
+}
+
+function qboTransaction(row: ExtractedRow, index: number) {
+  const posted = qboGuessPostedDate(row.date)
+  if (!posted) return ''
+  const amount = qboAmount(row)
+  if (!Number.isFinite(amount) || amount === 0) return ''
+
+  const description = qboText(row.description || 'Transaction')
+  const fitid = qboUid(`${posted}:${amount}:${description}:${index}`)
+  const type = amount < 0 ? 'DEBIT' : 'CREDIT'
+
+  return [
+    '<STMTTRN>',
+    `<TRNTYPE>${type}`,
+    `<DTPOSTED>${posted}`,
+    `<TRNAMT>${qboNumber(amount)}`,
+    `<FITID>${fitid}`,
+    `<NAME>${description.slice(0, 32) || 'Transaction'}`,
+    `<MEMO>${description.slice(0, 255)}`,
+    '</STMTTRN>',
+  ].join('\n')
+}
+
+function qboDateRange(rows: ExtractedRow[]) {
+  const postedDates = rows
+    .map((row) => qboGuessPostedDate(row.date))
+    .filter((value): value is string => Boolean(value))
+    .sort()
+  return {
+    startDate: postedDates[0],
+    endDate: postedDates[postedDates.length - 1],
+  }
+}
+
+function qboLastBalance(rows: ExtractedRow[]) {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const balance = rows[index]?.balance
+    if (balance !== undefined && Number.isFinite(balance)) return balance
+  }
+  return undefined
 }

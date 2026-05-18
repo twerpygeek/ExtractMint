@@ -25,6 +25,7 @@ import {
   createDocxBlob,
   createExcelBlob,
   createPdfBlob,
+  createQboBlob,
   createReviewJsonBlob,
   createReviewPackZipBlob,
   createSampleResult,
@@ -55,14 +56,14 @@ const workflow = [
   },
   {
     title: 'Download the file',
-    copy: 'Export a clean Excel workbook, CSV, DOCX, or PDF for accounting and reconciliation.',
+    copy: 'Export Excel, CSV, DOCX, PDF, or QuickBooks-ready QBO so you can reconcile immediately.',
   },
 ]
 
 const metrics = [
   ['40+', 'file and table patterns'],
   ['Local', 'browser-side processing'],
-  ['4', 'export formats'],
+  ['5', 'export formats'],
 ]
 
 const faqItems = [
@@ -84,7 +85,7 @@ const faqItems = [
   {
     question: 'What files can I download?',
     answer:
-      'You can download Excel XLSX, CSV, Google Docs-ready DOCX, and PDF summaries from the same extracted data.',
+      'You can download Excel XLSX, CSV, Google Docs-ready DOCX, PDF summaries, and a QuickBooks-ready QBO (OFX) file from the same extracted data.',
   },
   {
     question: 'Will scanned statements always work?',
@@ -162,7 +163,7 @@ function App() {
     void processFiles(event.dataTransfer.files)
   }
 
-  const downloadBlob = async (format: 'xlsx' | 'csv' | 'docx' | 'pdf') => {
+  const downloadBlob = async (format: 'xlsx' | 'csv' | 'docx' | 'pdf' | 'qbo') => {
     if (!activeResult) return
 
     const creators = {
@@ -170,6 +171,7 @@ function App() {
       csv: createCsvBlob,
       docx: createDocxBlob,
       pdf: createPdfBlob,
+      qbo: createQboBlob,
     }
     const blob = await creators[format](activeResult)
     const url = URL.createObjectURL(blob)
@@ -454,6 +456,10 @@ function App() {
               <button onClick={() => void downloadBlob('csv')} disabled={!activeResult}>
                 <ArrowDownToLine size={16} />
                 CSV
+              </button>
+              <button onClick={() => void downloadBlob('qbo')} disabled={!activeResult}>
+                <ReceiptText size={16} />
+                QuickBooks (QBO)
               </button>
             </div>
           </motion.div>
