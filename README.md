@@ -10,6 +10,7 @@ Elegant static SaaS prototype for converting bank statements, receipts, scans, P
 - Accountant-oriented exports:
   - Per-file review JSON (`*.extractmint-review.json`) with validation flags and SHA-256 fingerprint.
   - Review pack ZIP export with one `.xlsx` + review JSON per uploaded file.
+  - Combined workbook export (`Combined XLSX`) that puts each file into its own worksheet plus a shared Issues sheet.
 - In-app review table with inline edits that immediately re-check the running balance trail.
 - Remotion composition for a product explainer.
 - Remotion vertical onboarding promo for launch and social posts.

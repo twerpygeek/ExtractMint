@@ -248,6 +248,126 @@ export async function createExcelBlob(result: ConversionResult) {
   })
 }
 
+export async function createCombinedExcelBlob(results: ConversionResult[]) {
+  const ExcelJS = await import('exceljs')
+  const workbook = new ExcelJS.Workbook()
+  workbook.creator = 'ExtractMint'
+  workbook.created = new Date()
+
+  const summary = workbook.addWorksheet('Summary')
+  summary.columns = [
+    { header: 'File', key: 'file', width: 34 },
+    { header: 'Kind', key: 'kind', width: 18 },
+    { header: 'Currency', key: 'currency', width: 12 },
+    { header: 'Rows', key: 'rows', width: 10 },
+    { header: 'Confidence', key: 'confidence', width: 16 },
+    { header: 'Opening Balance', key: 'opening', width: 18 },
+    { header: 'Closing Balance', key: 'closing', width: 18 },
+    { header: 'Net Change', key: 'net', width: 16 },
+    { header: 'Deposits', key: 'deposits', width: 16 },
+    { header: 'Withdrawals', key: 'withdrawals', width: 16 },
+    { header: 'Validation', key: 'validation', width: 18 },
+    { header: 'Issues', key: 'issues', width: 10 },
+    { header: 'SHA-256', key: 'sha256', width: 66 },
+    { header: 'Processed', key: 'processed', width: 26 },
+  ]
+
+  const issuesSheet = workbook.addWorksheet('Issues')
+  issuesSheet.columns = [
+    { header: 'File', key: 'file', width: 34 },
+    { header: 'Row', key: 'row', width: 10 },
+    { header: 'Severity', key: 'severity', width: 12 },
+    { header: 'Delta', key: 'delta', width: 14 },
+    { header: 'Expected', key: 'expected', width: 16 },
+    { header: 'Actual', key: 'actual', width: 16 },
+    { header: 'Message', key: 'message', width: 90 },
+  ]
+
+  const usedSheetNames = new Set<string>(['Summary', 'Issues'])
+
+  for (const result of results) {
+    const totals = totalsForResult(result)
+    const opening = result.validation.openingBalance
+    const closing = result.validation.closingBalance
+    const net = opening !== undefined && closing !== undefined ? closing - opening : undefined
+
+    summary.addRow({
+      file: result.fileName,
+      kind: result.summary.documentKind,
+      currency: result.currencyCode,
+      rows: result.rows.length,
+      confidence: `${result.confidence}%`,
+      opening: opening ?? '',
+      closing: closing ?? '',
+      net: net ?? '',
+      deposits: totals.deposit,
+      withdrawals: totals.withdrawal,
+      validation: validationLabel(result.validation.status),
+      issues: result.validation.issueCount,
+      sha256: result.fileMeta.sha256 ?? '',
+      processed: result.processedAt,
+    })
+
+    result.validation.issues.forEach((issue) => {
+      issuesSheet.addRow({
+        file: result.fileName,
+        row: issue.rowIndex !== undefined ? issue.rowIndex + 1 : '',
+        severity: issue.severity,
+        delta: issue.delta ?? '',
+        expected: issue.expectedBalance ?? '',
+        actual: issue.actualBalance ?? '',
+        message: issue.message,
+      })
+    })
+
+    const rowsSheet = workbook.addWorksheet(uniqueSheetName(result.fileName, usedSheetNames))
+    rowsSheet.columns = [
+      { header: 'Date', key: 'date', width: 18 },
+      { header: 'Description', key: 'description', width: 46 },
+      { header: 'Reference', key: 'reference', width: 18 },
+      { header: 'Withdrawal', key: 'withdrawal', width: 16 },
+      { header: 'Deposit', key: 'deposit', width: 16 },
+      { header: 'Tax', key: 'tax', width: 12 },
+      { header: 'Amount', key: 'amount', width: 16 },
+      { header: 'Balance', key: 'balance', width: 16 },
+      { header: 'Review Status', key: 'reviewStatus', width: 18 },
+      { header: 'Review Notes', key: 'reviewNotes', width: 42 },
+      { header: 'Category', key: 'category', width: 18 },
+      { header: 'Confidence', key: 'confidence', width: 16 },
+      { header: 'Source', key: 'source', width: 18 },
+    ]
+    result.rows.forEach((row, index) => {
+      rowsSheet.addRow({
+        date: row.date ?? '',
+        description: row.description,
+        reference: row.reference ?? '',
+        withdrawal: row.withdrawal ?? '',
+        deposit: row.deposit ?? '',
+        tax: row.tax ?? '',
+        amount: row.amount ?? '',
+        balance: row.balance ?? '',
+        reviewStatus: rowReviewStatus(result.validation, index),
+        reviewNotes: rowReviewNotes(result.validation, index),
+        category: row.category,
+        confidence: `${row.confidence}%`,
+        source: row.source,
+      })
+    })
+    rowsSheet.getRow(1).font = { bold: true }
+    rowsSheet.views = [{ state: 'frozen', ySplit: 1 }]
+  }
+
+  ;[summary, issuesSheet].forEach((sheet) => {
+    sheet.getRow(1).font = { bold: true }
+    sheet.views = [{ state: 'frozen', ySplit: 1 }]
+  })
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  return new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+}
+
 export function createCsvBlob(result: ConversionResult) {
   const rows = [
     [
@@ -290,6 +410,40 @@ export function createCsvBlob(result: ConversionResult) {
     .join('\n')
 
   return new Blob([csv], { type: 'text/csv;charset=utf-8' })
+}
+
+function totalsForResult(result: ConversionResult) {
+  return {
+    amount: result.rows.reduce((sum, row) => sum + (row.amount ?? 0), 0),
+    withdrawal: result.rows.reduce((sum, row) => sum + (row.withdrawal ?? 0), 0),
+    deposit: result.rows.reduce((sum, row) => sum + (row.deposit ?? 0), 0),
+    tax: result.rows.reduce((sum, row) => sum + (row.tax ?? 0), 0),
+  }
+}
+
+function uniqueSheetName(fileName: string, usedNames: Set<string>) {
+  const baseName = (fileName.replace(/\.[^.]+$/, '') || 'Statement')
+    .replace(/[\]\\[*?:/]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const trimmed = baseName.slice(0, 31) || 'Statement'
+  if (!usedNames.has(trimmed)) {
+    usedNames.add(trimmed)
+    return trimmed
+  }
+
+  for (let suffix = 2; suffix < 1000; suffix += 1) {
+    const suffixText = ` ${suffix}`
+    const candidate = `${trimmed.slice(0, Math.max(0, 31 - suffixText.length))}${suffixText}`.trim()
+    if (!usedNames.has(candidate)) {
+      usedNames.add(candidate)
+      return candidate
+    }
+  }
+
+  const fallback = `Statement ${usedNames.size + 1}`.slice(0, 31)
+  usedNames.add(fallback)
+  return fallback
 }
 
 export function createQboBlob(result: ConversionResult) {

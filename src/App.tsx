@@ -21,6 +21,7 @@ import { type DragEvent, useMemo, useRef, useState } from 'react'
 import './App.css'
 import {
   convertFiles,
+  createCombinedExcelBlob,
   createCsvBlob,
   createDocxBlob,
   createExcelBlob,
@@ -319,6 +320,42 @@ function App() {
     }
   }
 
+  const downloadCombinedWorkbook = async () => {
+    if (results.length < 2) return
+    setIsProcessing(true)
+    setProgress({
+      fileName: `${results.length} files`,
+      stage: 'exporting',
+      percent: 92,
+      detail: 'Building combined workbook',
+    })
+    try {
+      const blob = await createCombinedExcelBlob(results)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const stamp = new Date().toISOString().slice(0, 10)
+      anchor.href = url
+      anchor.download = `extractmint-combined-${stamp}.xlsx`
+      anchor.click()
+      URL.revokeObjectURL(url)
+      setProgress({
+        fileName: `${results.length} files`,
+        stage: 'complete',
+        percent: 100,
+        detail: 'Combined workbook downloaded',
+      })
+    } catch (error) {
+      setProgress({
+        fileName: `${results.length} files`,
+        stage: 'error',
+        percent: 100,
+        detail: error instanceof Error ? error.message : 'Combined workbook export failed',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   return (
     <main>
       <header className="site-header">
@@ -524,6 +561,14 @@ function App() {
               <button onClick={() => void downloadBlob('xlsx')} disabled={!activeResult}>
                 <FileSpreadsheet size={16} />
                 Excel
+              </button>
+              <button
+                onClick={() => void downloadCombinedWorkbook()}
+                disabled={results.length < 2}
+                title="Download a single workbook with one sheet per file plus a combined Issues tab."
+              >
+                <Table2 size={16} />
+                Combined XLSX
               </button>
               <button onClick={downloadReviewJson} disabled={!activeResult}>
                 <ShieldCheck size={16} />
