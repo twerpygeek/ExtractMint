@@ -29,6 +29,7 @@ import {
   createReviewJsonBlob,
   createReviewPackZipBlob,
   createSampleResult,
+  revalidateRows,
   type ConversionResult,
   type ProgressEvent,
   type ValidationSummary,
@@ -103,6 +104,9 @@ function App() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [results, setResults] = useState<ConversionResult[]>([createSampleResult()])
   const [activeIndex, setActiveIndex] = useState(0)
+  const [showAllRows, setShowAllRows] = useState(false)
+  const [onlyIssues, setOnlyIssues] = useState(false)
+  const [editRows, setEditRows] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState<ProgressEvent>({
@@ -113,6 +117,90 @@ function App() {
   })
 
   const activeResult = results[activeIndex] ?? results[0]
+
+  const parseMoneyInput = (value: string) => {
+    const text = value.trim()
+    if (!text) return undefined
+    const isNegative = text.includes('(') || text.startsWith('-')
+    const numeric = Number(text.replace(/[^\d.]/g, ''))
+    if (!Number.isFinite(numeric)) return undefined
+    return isNegative ? -numeric : numeric
+  }
+
+  const updateRow = (
+    resultIndex: number,
+    rowIndex: number,
+    field:
+      | 'date'
+      | 'description'
+      | 'reference'
+      | 'withdrawal'
+      | 'deposit'
+      | 'amount'
+      | 'balance',
+    rawValue: string,
+  ) => {
+    setResults((previous) => {
+      const target = previous[resultIndex]
+      if (!target) return previous
+      const originalRow = target.rows[rowIndex]
+      if (!originalRow) return previous
+
+      const nextRows = [...target.rows]
+      const nextRow = { ...originalRow }
+
+      if (field === 'date') {
+        nextRow.date = rawValue.trim() ? rawValue.trim() : undefined
+      } else if (field === 'description') {
+        nextRow.description = rawValue.trim() || nextRow.description
+      } else if (field === 'reference') {
+        nextRow.reference = rawValue.trim() ? rawValue.trim() : undefined
+      } else if (field === 'withdrawal') {
+        const parsed = parseMoneyInput(rawValue)
+        nextRow.withdrawal = parsed === undefined ? undefined : Math.abs(parsed)
+        if (nextRow.withdrawal !== undefined) {
+          nextRow.deposit = undefined
+          nextRow.amount = -Math.abs(nextRow.withdrawal)
+        }
+      } else if (field === 'deposit') {
+        const parsed = parseMoneyInput(rawValue)
+        nextRow.deposit = parsed === undefined ? undefined : Math.abs(parsed)
+        if (nextRow.deposit !== undefined) {
+          nextRow.withdrawal = undefined
+          nextRow.amount = Math.abs(nextRow.deposit)
+        }
+      } else if (field === 'amount') {
+        const parsed = parseMoneyInput(rawValue)
+        nextRow.amount = parsed
+        if (parsed !== undefined) {
+          nextRow.withdrawal = undefined
+          nextRow.deposit = undefined
+        }
+      } else if (field === 'balance') {
+        nextRow.balance = parseMoneyInput(rawValue)
+      }
+
+      nextRows[rowIndex] = nextRow
+
+      const nextValidation = revalidateRows(nextRows, target.currencyCode || 'USD')
+      const nextResults = [...previous]
+      nextResults[resultIndex] = { ...target, rows: nextRows, validation: nextValidation }
+      return nextResults
+    })
+  }
+
+  const visibleRows = useMemo(() => {
+    const result = activeResult
+    if (!result) return []
+    const indexed = result.rows.map((row, index) => ({ row, index }))
+    const filtered = onlyIssues
+      ? indexed.filter(({ index }) => {
+          const review = rowReview(result.validation, index)
+          return review.status === 'Review' || review.status === 'Check'
+        })
+      : indexed
+    return showAllRows ? filtered : filtered.slice(0, 8)
+  }, [activeResult, onlyIssues, showAllRows])
   const totals = useMemo(() => {
     const rows = results.flatMap((result) => result.rows)
     const amount = rows.reduce((sum, row) => sum + (row.amount ?? 0), 0)
@@ -556,32 +644,120 @@ function App() {
                 </div>
 
                 <div className="table-wrap">
+                  <div className="table-controls" aria-label="Review controls">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={showAllRows}
+                        onChange={(event) => setShowAllRows(event.target.checked)}
+                      />
+                      Show all rows
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={onlyIssues}
+                        onChange={(event) => setOnlyIssues(event.target.checked)}
+                      />
+                      Only flagged rows
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={editRows}
+                        onChange={(event) => setEditRows(event.target.checked)}
+                      />
+                      Edit values
+                    </label>
+                    <span className="table-hint">Edits instantly re-check the running balance trail.</span>
+                  </div>
                   <table>
                     <thead>
                       <tr>
                         <th>Date</th>
                         <th>Description</th>
-                        <th>Amount</th>
+                        <th>Withdrawal</th>
+                        <th>Deposit</th>
                         <th>Balance</th>
                         <th>Review</th>
                         <th>Type</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(activeResult?.rows ?? []).slice(0, 8).map((row, index) => {
+                      {visibleRows.map(({ row, index }) => {
                         const review = rowReview(activeResult?.validation, index)
                         return (
                           <tr
                             key={`${row.description}-${index}`}
                             className={review.status === 'Review' ? 'needs-review' : ''}
                           >
-                            <td>{row.date || 'Detected'}</td>
                             <td>
-                              {row.description}
+                              {editRows ? (
+                                <input
+                                  key={`${activeIndex}-${index}-date-${row.date ?? ''}`}
+                                  defaultValue={row.date ?? ''}
+                                  placeholder="YYYY-MM-DD"
+                                  onBlur={(event) => updateRow(activeIndex, index, 'date', event.target.value)}
+                                />
+                              ) : (
+                                (row.date || 'Detected')
+                              )}
+                            </td>
+                            <td>
+                              {editRows ? (
+                                <input
+                                  key={`${activeIndex}-${index}-desc-${row.description}`}
+                                  defaultValue={row.description}
+                                  onBlur={(event) =>
+                                    updateRow(activeIndex, index, 'description', event.target.value)
+                                  }
+                                />
+                              ) : (
+                                row.description
+                              )}
                               {review.note ? <small className="review-note">{review.note}</small> : null}
                             </td>
-                            <td>{formatAmount(row.amount, activeResult?.currencyCode)}</td>
-                            <td>{formatAmount(row.balance, activeResult?.currencyCode)}</td>
+                            <td>
+                              {editRows ? (
+                                <input
+                                  key={`${activeIndex}-${index}-withdrawal-${row.withdrawal ?? ''}`}
+                                  defaultValue={row.withdrawal !== undefined ? String(row.withdrawal) : ''}
+                                  inputMode="decimal"
+                                  placeholder="-"
+                                  onBlur={(event) =>
+                                    updateRow(activeIndex, index, 'withdrawal', event.target.value)
+                                  }
+                                />
+                              ) : (
+                                formatAmount(row.withdrawal, activeResult?.currencyCode)
+                              )}
+                            </td>
+                            <td>
+                              {editRows ? (
+                                <input
+                                  key={`${activeIndex}-${index}-deposit-${row.deposit ?? ''}`}
+                                  defaultValue={row.deposit !== undefined ? String(row.deposit) : ''}
+                                  inputMode="decimal"
+                                  placeholder="-"
+                                  onBlur={(event) => updateRow(activeIndex, index, 'deposit', event.target.value)}
+                                />
+                              ) : (
+                                formatAmount(row.deposit, activeResult?.currencyCode)
+                              )}
+                            </td>
+                            <td>
+                              {editRows ? (
+                                <input
+                                  key={`${activeIndex}-${index}-balance-${row.balance ?? ''}`}
+                                  defaultValue={row.balance !== undefined ? String(row.balance) : ''}
+                                  inputMode="decimal"
+                                  placeholder="-"
+                                  onBlur={(event) => updateRow(activeIndex, index, 'balance', event.target.value)}
+                                />
+                              ) : (
+                                formatAmount(row.balance, activeResult?.currencyCode)
+                              )}
+                            </td>
                             <td>
                               <span className={`review-pill ${review.status.toLowerCase()}`}>
                                 {review.status}

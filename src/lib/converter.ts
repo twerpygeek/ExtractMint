@@ -76,6 +76,10 @@ const datePattern =
 const amountPattern =
   /[-+]?(?:[$€£]\s*)?\(?\d{1,3}(?:,\d{3})+(?:\.\d{2})?\)?|[-+]?(?:[$€£]\s*)?\(?\d+\.\d{2}\)?|[-+]?[$€£]\s*\(?\d+\)?/g
 
+export function revalidateRows(rows: ExtractedRow[], currencyCode: string) {
+  return validateBalances(rows, currencyCode)
+}
+
 export async function convertFiles(files: File[], onProgress: ProgressCallback) {
   const results: ConversionResult[] = []
 
