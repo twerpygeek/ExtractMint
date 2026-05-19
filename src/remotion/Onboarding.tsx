@@ -647,22 +647,30 @@ function LogoMark({ size }: { size: number }) {
         borderRadius: Math.round(size * 0.24),
         display: 'grid',
         placeItems: 'center',
-        background: brand.paper,
-        color: brand.ink,
-        boxShadow: 'inset 0 0 0 2px rgba(7,25,35,.12), 0 16px 38px rgba(7,25,35,.12)',
+        background: brand.ink,
+        color: '#c9ffe6',
+        boxShadow: 'inset 0 0 0 2px rgba(201,255,230,.16), 0 16px 38px rgba(7,25,35,.18)',
       }}
     >
       <svg width={size * 0.58} height={size * 0.58} viewBox="0 0 32 32">
         <path
-          d="M9 4.75h10.4L24.5 10v17.25H9z"
+          d="M7.5 5.5h12.25L24.5 10.25v16.25h-17z"
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
           strokeLinejoin="round"
         />
-        <path d="M19.5 5v5.5H25" fill="none" stroke="currentColor" strokeWidth="2" />
-        <path d="M12.5 14.5h8M12.5 18.5h8M12.5 22.5h8" stroke="currentColor" strokeWidth="2" />
-        <path d="M15.5 13v11" stroke="currentColor" strokeWidth="1.5" opacity="0.72" />
+        <path d="M19.5 6v5h5" fill="none" stroke="currentColor" strokeWidth="2" />
+        <path d="M11.5 15.25h8.25M11.5 19h5.75" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M11.5 22.75h3.25M17.25 22.75h3.25" stroke="currentColor" strokeWidth="1.8" />
+        <path
+          d="M18.25 20.5l2.05 2.05 4.45-5"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2.2"
+        />
       </svg>
     </div>
   )

@@ -397,7 +397,10 @@ function App() {
           <span className="brand-mark">
             <LogoMark />
           </span>
-          <span>ExtractMint</span>
+          <span className="brand-copy">
+            <strong>ExtractMint</strong>
+            <small>Ledger-grade exports</small>
+          </span>
         </a>
         <nav aria-label="Primary navigation">
           <a href="#converter">Converter</a>
@@ -418,7 +421,7 @@ function App() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            Bank statements to Excel, right in your browser
+            Ledger-grade document extraction
           </motion.p>
           <motion.h1
             className="animated-headline"
@@ -431,14 +434,14 @@ function App() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.08 }}
             >
-              Convert bank statements
+              Statements in.
             </motion.span>
             <motion.span
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.18 }}
             >
-              into clean Excel.
+              Reconciled files out.
             </motion.span>
           </motion.h1>
           <motion.p
@@ -448,14 +451,14 @@ function App() {
             transition={{ delay: 0.1 }}
           >
             Upload a PDF statement, receipt, or invoice. ExtractMint reads the
-            table, keeps the balances intact, and exports Excel, CSV, DOCX, or
-            PDF without sending files to a server.
+            table, validates the balance trail, and exports Excel, CSV, DOCX,
+            PDF, QBO, and review packs without sending files to a server.
           </motion.p>
           <motion.div
             className="hero-actions"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
+            transition={{ delay: 0.14 }}
           >
             <button className="primary-button" onClick={() => inputRef.current?.click()}>
               <UploadCloud size={18} />
@@ -465,6 +468,26 @@ function App() {
               <PlayCircle size={18} />
               Watch flow
             </a>
+          </motion.div>
+          <motion.div
+            className="hero-proof"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18 }}
+            aria-label="Product trust signals"
+          >
+            <span>
+              <LockKeyhole size={16} />
+              Browser-side processing
+            </span>
+            <span>
+              <BadgeCheck size={16} />
+              Balance trail checks
+            </span>
+            <span>
+              <FileSpreadsheet size={16} />
+              Excel and QBO exports
+            </span>
           </motion.div>
           <div className="support-strip" id="formats">
             {supportItems.map((item) => (
@@ -482,6 +505,7 @@ function App() {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ delay: 0.12, duration: 0.55 }}
         >
+          <div className="stage-frame" aria-hidden="true" />
           <div className="stage-glow" />
           <motion.div
             className="scan-path"
@@ -1044,15 +1068,23 @@ function LogoMark() {
   return (
     <svg viewBox="0 0 32 32" role="img" aria-label="ExtractMint mark">
       <path
-        d="M9 4.75h10.4L24.5 10v17.25H9z"
+        d="M7.5 5.5h12.25L24.5 10.25v16.25h-17z"
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinejoin="round"
       />
-      <path d="M19.5 5v5.5H25" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path d="M12.5 14.5h8M12.5 18.5h8M12.5 22.5h8" stroke="currentColor" strokeWidth="2" />
-      <path d="M15.5 13v11" stroke="currentColor" strokeWidth="1.5" opacity="0.72" />
+      <path d="M19.5 6v5h5" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M11.5 15.25h8.25M11.5 19h5.75" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M11.5 22.75h3.25M17.25 22.75h3.25" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M18.25 20.5l2.05 2.05 4.45-5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2.2"
+      />
     </svg>
   )
 }
