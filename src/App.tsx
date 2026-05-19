@@ -93,7 +93,7 @@ const faqItems = [
   {
     question: 'Will scanned statements always work?',
     answer:
-      'Images and scans use browser OCR, so clean scans work best. Difficult scans may need a future server OCR pipeline for higher accuracy.',
+      'Yes — when a PDF has little embedded text, ExtractMint falls back to browser OCR per page. Clean scans work best; extremely noisy scans may still need manual review.',
   },
   {
     question: 'Can this become a paid SaaS?',

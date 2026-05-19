@@ -803,7 +803,85 @@ async function extractPdfText(file: File, onProgress: ProgressCallback) {
     })
   }
 
-  return chunks.join('\n')
+  const extracted = chunks.join('\n')
+  const extractedDensity = extracted.replace(/\s+/g, '').length / Math.max(pdf.numPages, 1)
+
+  if (extractedDensity >= 220) return extracted
+
+  onProgress({
+    fileName: file.name,
+    stage: 'ocr',
+    percent: 2,
+    detail: 'Low text detected — running OCR on PDF pages',
+  })
+
+  const ocrChunks: string[] = []
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const text = await extractPdfPageWithOcr(pdf, pageNumber, file.name, onProgress)
+    ocrChunks.push(`Page ${pageNumber}\n${text}`)
+  }
+
+  return ocrChunks.join('\n')
+}
+
+type PdfDocumentLike = { getPage: (pageNumber: number) => Promise<unknown>; numPages: number }
+
+async function extractPdfPageWithOcr(
+  pdf: PdfDocumentLike,
+  pageNumber: number,
+  fileName: string,
+  onProgress: ProgressCallback,
+) {
+  const page = await pdf.getPage(pageNumber)
+  if (!page || typeof page !== 'object') return ''
+  if (!('getViewport' in page) || !('render' in page)) return ''
+  if (typeof (page as { getViewport?: unknown }).getViewport !== 'function') return ''
+  if (typeof (page as { render?: unknown }).render !== 'function') return ''
+
+  const viewport = (page as { getViewport: (options: { scale: number }) => unknown }).getViewport({ scale: 2 })
+  const viewportSize = viewport as { width?: unknown; height?: unknown }
+  const canvas = document.createElement('canvas')
+  const width = Number(viewportSize.width ?? 0)
+  const height = Number(viewportSize.height ?? 0)
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return ''
+  }
+  canvas.width = Math.ceil(width)
+  canvas.height = Math.ceil(height)
+  const context = canvas.getContext('2d')
+  if (!context) return ''
+
+  const renderTask = (
+    page as {
+      render: (options: {
+        canvasContext: CanvasRenderingContext2D
+        viewport: unknown
+        canvas: HTMLCanvasElement
+      }) => { promise?: unknown }
+    }
+  ).render({ canvasContext: context, viewport, canvas })
+  const promise = renderTask && typeof renderTask === 'object' && 'promise' in renderTask ? (renderTask as { promise: unknown }).promise : undefined
+  if (!(promise instanceof Promise)) return ''
+  await promise
+
+  const { recognize } = await import('tesseract.js')
+  const result = await recognize(canvas, 'eng', {
+    logger: (message) => {
+      if (message.status === 'recognizing text') {
+        const pageBase = (pageNumber - 1) / Math.max(pdf.numPages, 1)
+        const pageProgress = (message.progress ?? 0) / Math.max(pdf.numPages, 1)
+        const percent = Math.round((pageBase + pageProgress) * 96)
+        onProgress({
+          fileName,
+          stage: 'ocr',
+          percent,
+          detail: `OCR page ${pageNumber} of ${pdf.numPages}`,
+        })
+      }
+    },
+  })
+
+  return result.data.text
 }
 
 async function extractImageText(file: File, onProgress: ProgressCallback) {
