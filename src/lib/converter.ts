@@ -182,6 +182,8 @@ export async function createExcelBlob(result: ConversionResult) {
   workbook.creator = 'ExtractMint'
   workbook.created = new Date()
 
+  const reconciliation = reconciliationForResult(result)
+
   const summary = workbook.addWorksheet('Summary')
   summary.columns = [
     { header: 'File', key: 'file', width: 34 },
@@ -231,6 +233,105 @@ export async function createExcelBlob(result: ConversionResult) {
     })
   })
 
+  const reconciliationSheet = workbook.addWorksheet('Reconciliation')
+  reconciliationSheet.columns = [
+    { header: 'Metric', key: 'metric', width: 28 },
+    { header: 'Value', key: 'value', width: 24 },
+    { header: 'Notes', key: 'notes', width: 66 },
+  ]
+  reconciliationSheet.addRows([
+    {
+      metric: 'Validation status',
+      value: validationLabel(result.validation.status),
+      notes:
+        result.validation.status === 'valid'
+          ? 'Opening/closing balances and row-by-row transitions are consistent.'
+          : result.validation.status === 'review'
+            ? 'At least one balance transition did not match; see Summary/Issues.'
+            : 'Not enough balance data to fully validate transitions.',
+    },
+    {
+      metric: 'Opening balance',
+      value:
+        reconciliation.openingBalance !== undefined
+          ? money(reconciliation.openingBalance, result.currencyCode)
+          : '',
+      notes: 'First detected running balance (or explicit OPENING BALANCE row).',
+    },
+    {
+      metric: 'Closing balance',
+      value:
+        reconciliation.closingBalance !== undefined
+          ? money(reconciliation.closingBalance, result.currencyCode)
+          : '',
+      notes: 'Last detected running balance (or explicit CLOSING BALANCE row).',
+    },
+    {
+      metric: 'Net change (closing - opening)',
+      value:
+        reconciliation.netChange !== undefined
+          ? money(reconciliation.netChange, result.currencyCode)
+          : '',
+      notes: 'Expected to match Transaction net when rows are complete.',
+    },
+    {
+      metric: 'Deposits (sum)',
+      value: money(reconciliation.deposits, result.currencyCode),
+      notes: 'Sum of detected deposit (credit) values.',
+    },
+    {
+      metric: 'Withdrawals (sum)',
+      value: money(reconciliation.withdrawals, result.currencyCode),
+      notes: 'Sum of detected withdrawal (debit) values.',
+    },
+    {
+      metric: 'Transaction net (deposits - withdrawals)',
+      value: money(reconciliation.transactionNet, result.currencyCode),
+      notes: 'Computed from detected deposit/withdrawal columns when available.',
+    },
+    {
+      metric: 'Discrepancy (net change - transaction net)',
+      value:
+        reconciliation.discrepancy !== undefined
+          ? money(reconciliation.discrepancy, result.currencyCode)
+          : '',
+      notes:
+        reconciliation.discrepancy !== undefined && Math.abs(reconciliation.discrepancy) > 0.01
+          ? 'Non-zero discrepancy suggests missing/incorrect transactions or balances.'
+          : 'Zero (or near-zero) discrepancy.',
+    },
+    {
+      metric: 'Rows detected',
+      value: result.rows.length,
+      notes: 'Number of structured rows exported in the Rows sheet.',
+    },
+    {
+      metric: 'Balance transitions checked',
+      value: result.validation.checkedRows,
+      notes: 'Row-to-row transitions with enough data to validate balances.',
+    },
+    {
+      metric: 'Issues',
+      value: result.validation.issueCount,
+      notes: 'Count of validation issues logged in the Summary sheet.',
+    },
+    {
+      metric: 'Statement period',
+      value: `${result.statementPeriod?.start ?? ''}${result.statementPeriod?.end ? ` → ${result.statementPeriod.end}` : ''}`,
+      notes: result.statementPeriod?.source ? `Source: ${result.statementPeriod.source}` : '',
+    },
+    {
+      metric: 'File SHA-256',
+      value: result.fileMeta.sha256 ?? '',
+      notes: 'Fingerprint for audit trail / repeat conversions.',
+    },
+    {
+      metric: 'Processed at (UTC)',
+      value: result.processedAt,
+      notes: '',
+    },
+  ])
+
   const rows = workbook.addWorksheet('Rows')
   rows.columns = [
     { header: 'Date', key: 'date', width: 18 },
@@ -268,6 +369,8 @@ export async function createExcelBlob(result: ConversionResult) {
     sheet.getRow(1).font = { bold: true }
     sheet.views = [{ state: 'frozen', ySplit: 1 }]
   })
+  reconciliationSheet.getRow(1).font = { bold: true }
+  reconciliationSheet.views = [{ state: 'frozen', ySplit: 1 }]
 
   const buffer = await workbook.xlsx.writeBuffer()
   return new Blob([buffer], {
@@ -312,6 +415,25 @@ export async function createCombinedExcelBlob(results: ConversionResult[]) {
     { header: 'Message', key: 'message', width: 90 },
   ]
 
+  const reconciliationSheet = workbook.addWorksheet('Reconciliation')
+  reconciliationSheet.columns = [
+    { header: 'File', key: 'file', width: 34 },
+    { header: 'Currency', key: 'currency', width: 12 },
+    { header: 'Statement Start', key: 'statementStart', width: 18 },
+    { header: 'Statement End', key: 'statementEnd', width: 18 },
+    { header: 'Rows', key: 'rows', width: 10 },
+    { header: 'Opening Balance', key: 'opening', width: 18 },
+    { header: 'Closing Balance', key: 'closing', width: 18 },
+    { header: 'Net Change', key: 'net', width: 16 },
+    { header: 'Deposits', key: 'deposits', width: 16 },
+    { header: 'Withdrawals', key: 'withdrawals', width: 16 },
+    { header: 'Transaction Net', key: 'transactionNet', width: 16 },
+    { header: 'Discrepancy', key: 'discrepancy', width: 16 },
+    { header: 'Checked Rows', key: 'checkedRows', width: 14 },
+    { header: 'Issues', key: 'issues', width: 10 },
+    { header: 'Validation', key: 'validation', width: 18 },
+  ]
+
   const usedSheetNames = new Set<string>(['Summary', 'Issues'])
 
   for (const result of results) {
@@ -337,6 +459,25 @@ export async function createCombinedExcelBlob(results: ConversionResult[]) {
       issues: result.validation.issueCount,
       sha256: result.fileMeta.sha256 ?? '',
       processed: result.processedAt,
+    })
+
+    const reconciliation = reconciliationForResult(result)
+    reconciliationSheet.addRow({
+      file: result.fileName,
+      currency: result.currencyCode,
+      statementStart: result.statementPeriod?.start ?? '',
+      statementEnd: result.statementPeriod?.end ?? '',
+      rows: result.rows.length,
+      opening: reconciliation.openingBalance ?? '',
+      closing: reconciliation.closingBalance ?? '',
+      net: reconciliation.netChange ?? '',
+      deposits: reconciliation.deposits,
+      withdrawals: reconciliation.withdrawals,
+      transactionNet: reconciliation.transactionNet,
+      discrepancy: reconciliation.discrepancy ?? '',
+      checkedRows: result.validation.checkedRows,
+      issues: result.validation.issueCount,
+      validation: validationLabel(result.validation.status),
     })
 
     result.validation.issues.forEach((issue) => {
@@ -392,6 +533,8 @@ export async function createCombinedExcelBlob(results: ConversionResult[]) {
     sheet.getRow(1).font = { bold: true }
     sheet.views = [{ state: 'frozen', ySplit: 1 }]
   })
+  reconciliationSheet.getRow(1).font = { bold: true }
+  reconciliationSheet.views = [{ state: 'frozen', ySplit: 1 }]
 
   const buffer = await workbook.xlsx.writeBuffer()
   return new Blob([buffer], {
@@ -449,6 +592,36 @@ function totalsForResult(result: ConversionResult) {
     withdrawal: result.rows.reduce((sum, row) => sum + (row.withdrawal ?? 0), 0),
     deposit: result.rows.reduce((sum, row) => sum + (row.deposit ?? 0), 0),
     tax: result.rows.reduce((sum, row) => sum + (row.tax ?? 0), 0),
+  }
+}
+
+function reconciliationForResult(result: ConversionResult) {
+  const totals = totalsForResult(result)
+  const openingBalance = result.validation.openingBalance
+  const closingBalance = result.validation.closingBalance
+  const netChange =
+    openingBalance !== undefined && closingBalance !== undefined
+      ? roundMoney(closingBalance - openingBalance)
+      : undefined
+
+  const hasDebitCredit = result.rows.some(
+    (row) => row.deposit !== undefined || row.withdrawal !== undefined,
+  )
+  const transactionNet = hasDebitCredit
+    ? roundMoney(totals.deposit - totals.withdrawal)
+    : roundMoney(totals.amount)
+
+  const discrepancy =
+    netChange !== undefined ? roundMoney(netChange - transactionNet) : undefined
+
+  return {
+    openingBalance,
+    closingBalance,
+    netChange,
+    deposits: roundMoney(totals.deposit),
+    withdrawals: roundMoney(totals.withdrawal),
+    transactionNet,
+    discrepancy,
   }
 }
 
