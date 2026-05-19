@@ -30,6 +30,7 @@ import {
   createReviewJsonBlob,
   createReviewPackZipBlob,
   createSampleResult,
+  importReviewJson,
   refreshStatementPeriod,
   revalidateRows,
   type ConversionResult,
@@ -116,6 +117,11 @@ const faqItems = [
     question: 'Can this become a paid SaaS?',
     answer:
       'Yes. The current version is a deployable static prototype. Accounts, credits, batch jobs, API access, and audit logs can be added with a backend.',
+  },
+  {
+    question: 'Can I resume a conversion later?',
+    answer:
+      'Yes. Download the review JSON (or the review pack ZIP). Later, upload the .extractmint-review.json file to restore the extracted rows, validations, and continue exporting without re-processing the original PDF.',
   },
 ]
 
@@ -254,16 +260,48 @@ function App() {
     const files = Array.from(fileList)
     if (files.length === 0) return
 
+    const reviewJsonFiles = files.filter((file) =>
+      file.name.toLowerCase().endsWith('.extractmint-review.json'),
+    )
+    const normalFiles = files.filter(
+      (file) => !file.name.toLowerCase().endsWith('.extractmint-review.json'),
+    )
+
     setIsProcessing(true)
     setActiveIndex(0)
     try {
-      const converted = await convertFiles(files, setProgress, {
-        forceOcr,
-        ocrLanguage,
-      })
-      setResults(converted)
+      const imported: ConversionResult[] = []
+      for (let index = 0; index < reviewJsonFiles.length; index += 1) {
+        const file = reviewJsonFiles[index]
+        setProgress({
+          fileName: file.name,
+          stage: 'reading',
+          percent: Math.round((index / Math.max(1, reviewJsonFiles.length)) * 100),
+          detail: 'Importing ExtractMint review JSON',
+        })
+        try {
+          imported.push(await importReviewJson(file))
+        } catch (error) {
+          throw new Error(
+            `Failed to import ${file.name}: ${error instanceof Error ? error.message : 'Invalid JSON'}`,
+            { cause: error },
+          )
+        }
+      }
+
+      const converted =
+        normalFiles.length === 0
+          ? []
+          : await convertFiles(normalFiles, setProgress, {
+              forceOcr,
+              ocrLanguage,
+            })
+
+      const combined = [...imported, ...converted]
+      if (combined.length === 0) return
+      setResults(combined)
       setProgress({
-        fileName: files.length === 1 ? files[0].name : `${files.length} files`,
+        fileName: combined.length === 1 ? combined[0].fileName : `${combined.length} files`,
         stage: 'complete',
         percent: 100,
         detail: 'Conversion package is ready',

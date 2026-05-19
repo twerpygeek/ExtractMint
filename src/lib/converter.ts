@@ -660,7 +660,7 @@ export function createPdfBlob(result: ConversionResult) {
 
 export function createReviewJsonBlob(result: ConversionResult) {
   const payload = {
-    schema: 'extractmint.review.v1',
+    schema: 'extractmint.review.v2',
     createdAt: new Date().toISOString(),
     fileName: result.fileName,
     fileType: result.fileType,
@@ -670,6 +670,7 @@ export function createReviewJsonBlob(result: ConversionResult) {
     processedAt: result.processedAt,
     confidence: result.confidence,
     summary: result.summary,
+    rows: result.rows,
     rowCount: result.rows.length,
     totals: {
       amount: result.rows.reduce((sum, row) => sum + (row.amount ?? 0), 0),
@@ -683,6 +684,106 @@ export function createReviewJsonBlob(result: ConversionResult) {
   return new Blob([JSON.stringify(payload, null, 2)], {
     type: 'application/json;charset=utf-8',
   })
+}
+
+const asFiniteNumber = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim())
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
+const asString = (value: unknown) =>
+  typeof value === 'string' ? value : value === undefined || value === null ? undefined : String(value)
+
+export async function importReviewJson(file: File): Promise<ConversionResult> {
+  const text = await file.text()
+  const payload = JSON.parse(text) as Record<string, unknown>
+
+  const schema = asString(payload.schema)
+  if (!schema || !schema.startsWith('extractmint.review.')) {
+    throw new Error('Not an ExtractMint review JSON export')
+  }
+
+  const rowsValue = payload.rows
+  if (!Array.isArray(rowsValue)) {
+    throw new Error(
+      'This review JSON does not include rows. Re-export a new review JSON (schema extractmint.review.v2).',
+    )
+  }
+
+  const fileName = asString(payload.fileName) ?? file.name
+  const fileType = asString(payload.fileType) ?? 'application/json'
+  const currencyCode = asString(payload.currencyCode) ?? 'USD'
+  const processedAt = asString(payload.processedAt) ?? asString(payload.createdAt) ?? new Date().toISOString()
+
+  const summary =
+    typeof payload.summary === 'object' && payload.summary
+      ? (payload.summary as ConversionResult['summary'])
+      : {
+          title: fileName.replace(/\.[^.]+$/, '') || fileName,
+          documentKind: 'Review import',
+          total: rowsValue.length,
+          notes: ['Imported from ExtractMint review JSON'],
+        }
+
+  const fileMeta =
+    typeof payload.fileMeta === 'object' && payload.fileMeta
+      ? (payload.fileMeta as ConversionResult['fileMeta'])
+      : {
+          size: file.size,
+          lastModified: file.lastModified,
+        }
+
+  const rows: ExtractedRow[] = rowsValue.map((row) => {
+    const record = (row ?? {}) as Record<string, unknown>
+    const description = asString(record.description)?.trim() || 'Transaction'
+    const category = asString(record.category)?.trim() || 'Uncategorized'
+    const confidence = asFiniteNumber(record.confidence) ?? 0
+    const source = asString(record.source)?.trim() || 'review-json'
+
+    const amount = asFiniteNumber(record.amount)
+    const withdrawal = asFiniteNumber(record.withdrawal)
+    const deposit = asFiniteNumber(record.deposit)
+    const tax = asFiniteNumber(record.tax)
+    const balance = asFiniteNumber(record.balance)
+
+    return {
+      date: asString(record.date)?.trim() || undefined,
+      description,
+      amount,
+      withdrawal,
+      deposit,
+      tax,
+      balance,
+      reference: asString(record.reference)?.trim() || undefined,
+      category,
+      confidence,
+      source,
+    }
+  })
+
+  const validation = revalidateRows(rows, currencyCode)
+  const statementPeriod =
+    typeof payload.statementPeriod === 'object' && payload.statementPeriod
+      ? refreshStatementPeriod(rows, payload.statementPeriod as ConversionResult['statementPeriod'])
+      : refreshStatementPeriod(rows)
+
+  return {
+    fileName,
+    fileType,
+    currencyCode,
+    statementPeriod,
+    fileMeta,
+    rawText: '',
+    rows,
+    confidence: asFiniteNumber(payload.confidence) ?? Math.round(summary.total > 0 ? 84 : 0),
+    validation,
+    processedAt,
+    summary,
+  }
 }
 
 export async function createReviewPackZipBlob(results: ConversionResult[]) {
