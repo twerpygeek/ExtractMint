@@ -37,6 +37,23 @@ import {
   type ValidationSummary,
 } from './lib/converter'
 
+const storedValue = (key: string) => {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+const storeValue = (key: string, value: string) => {
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    // ignore
+  }
+}
+
 const supportItems = [
   { icon: FileText, label: 'PDF statements' },
   { icon: ReceiptText, label: 'Receipts' },
@@ -111,6 +128,8 @@ function App() {
   const [editRows, setEditRows] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [forceOcr, setForceOcr] = useState(() => storedValue('extractmint.forceOcr') === '1')
+  const [ocrLanguage, setOcrLanguage] = useState(() => storedValue('extractmint.ocrLanguage') || 'eng')
   const [progress, setProgress] = useState<ProgressEvent>({
     fileName: 'sample-bank-statement.pdf',
     stage: 'ready',
@@ -238,7 +257,10 @@ function App() {
     setIsProcessing(true)
     setActiveIndex(0)
     try {
-      const converted = await convertFiles(files, setProgress)
+      const converted = await convertFiles(files, setProgress, {
+        forceOcr,
+        ocrLanguage,
+      })
       setResults(converted)
       setProgress({
         fileName: files.length === 1 ? files[0].name : `${files.length} files`,
@@ -546,10 +568,41 @@ function App() {
               <small>or click to choose files from your desktop</small>
             </label>
 
-            <div className="progress-panel">
-              <div>
-                <span>{progress.stage}</span>
-                <strong>{progress.fileName}</strong>
+            <div className="ocr-settings" aria-label="OCR settings">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={forceOcr}
+                  onChange={(event) => {
+                    const next = event.target.checked
+                    setForceOcr(next)
+                    storeValue('extractmint.forceOcr', next ? '1' : '0')
+                  }}
+                />
+                Force OCR (scanned PDFs)
+              </label>
+              <label>
+                OCR language
+                <select
+                  value={ocrLanguage}
+                  onChange={(event) => {
+                    const next = event.target.value
+                    setOcrLanguage(next)
+                    storeValue('extractmint.ocrLanguage', next)
+                  }}
+                >
+                  <option value="eng">English</option>
+                  <option value="msa">Malay</option>
+                  <option value="ind">Indonesian</option>
+                  <option value="chi_sim">Chinese (Simplified)</option>
+                </select>
+              </label>
+            </div>
+
+	            <div className="progress-panel">
+	              <div>
+	                <span>{progress.stage}</span>
+	                <strong>{progress.fileName}</strong>
                 <small>{progress.detail}</small>
               </div>
               <div className="progress-ring" aria-label={`${progress.percent}% complete`}>

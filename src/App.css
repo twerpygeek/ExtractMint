@@ -470,6 +470,44 @@ h3 {
   z-index: 1;
 }
 
+.ocr-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  justify-content: space-between;
+  margin: -6px 20px 18px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(16, 32, 41, 0.08);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.ocr-settings label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #56656c;
+  font-size: 13px;
+  font-weight: 690;
+}
+
+.ocr-settings input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--mint);
+}
+
+.ocr-settings select {
+  margin-left: 6px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 32, 41, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  font-size: 13px;
+}
+
 .progress-panel {
   display: grid;
   grid-template-columns: 1fr auto;

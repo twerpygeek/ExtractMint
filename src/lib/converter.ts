@@ -76,6 +76,11 @@ export type ConversionResult = {
 
 type ProgressCallback = (event: ProgressEvent) => void
 
+export type ExtractionOptions = {
+  forceOcr?: boolean
+  ocrLanguage?: string
+}
+
 const datePattern =
   /(?:\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b|\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{2,4}\b)/i
 const amountPattern =
@@ -94,7 +99,11 @@ export function refreshStatementPeriod(
   return inferred ? { ...inferred, source: 'inferred' } : undefined
 }
 
-export async function convertFiles(files: File[], onProgress: ProgressCallback) {
+export async function convertFiles(
+  files: File[],
+  onProgress: ProgressCallback,
+  options: ExtractionOptions = {},
+) {
   const results: ConversionResult[] = []
 
   for (let index = 0; index < files.length; index += 1) {
@@ -116,7 +125,7 @@ export async function convertFiles(files: File[], onProgress: ProgressCallback) 
           Math.round(basePercent + event.percent / Math.max(files.length, 1)),
         ),
       })
-    })
+    }, options)
 
     onProgress({
       fileName: file.name,
@@ -758,15 +767,26 @@ async function createPdfBlobAsync(result: ConversionResult) {
   return pdf.output('blob')
 }
 
-async function extractText(file: File, onProgress: ProgressCallback) {
+const ocrTextCache = new Map<string, string>()
+
+function fileSignature(file: File) {
+  return `${file.name}:${file.size}:${file.lastModified}`
+}
+
+function normalizeOcrLanguage(language?: string) {
+  const value = (language ?? 'eng').trim()
+  return value || 'eng'
+}
+
+async function extractText(file: File, onProgress: ProgressCallback, options: ExtractionOptions) {
   const extension = extensionOf(file.name)
 
   if (file.type === 'application/pdf' || extension === 'pdf') {
-    return extractPdfText(file, onProgress)
+    return extractPdfText(file, onProgress, options)
   }
 
   if (file.type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff'].includes(extension)) {
-    return extractImageText(file, onProgress)
+    return extractImageText(file, onProgress, options)
   }
 
   if (extension === 'docx') {
@@ -780,7 +800,7 @@ async function extractText(file: File, onProgress: ProgressCallback) {
   return file.text()
 }
 
-async function extractPdfText(file: File, onProgress: ProgressCallback) {
+async function extractPdfText(file: File, onProgress: ProgressCallback, options: ExtractionOptions) {
   const [pdfjs, worker] = await Promise.all([
     import('pdfjs-dist'),
     import('pdfjs-dist/build/pdf.worker.mjs?url'),
@@ -789,6 +809,8 @@ async function extractPdfText(file: File, onProgress: ProgressCallback) {
   const buffer = await file.arrayBuffer()
   const pdf = await pdfjs.getDocument({ data: buffer }).promise
   const chunks: string[] = []
+  const signature = fileSignature(file)
+  const ocrLanguage = normalizeOcrLanguage(options.ocrLanguage)
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber)
@@ -806,7 +828,7 @@ async function extractPdfText(file: File, onProgress: ProgressCallback) {
   const extracted = chunks.join('\n')
   const extractedDensity = extracted.replace(/\s+/g, '').length / Math.max(pdf.numPages, 1)
 
-  if (extractedDensity >= 220) return extracted
+  if (!options.forceOcr && extractedDensity >= 220) return extracted
 
   onProgress({
     fileName: file.name,
@@ -817,7 +839,14 @@ async function extractPdfText(file: File, onProgress: ProgressCallback) {
 
   const ocrChunks: string[] = []
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    const text = await extractPdfPageWithOcr(pdf, pageNumber, file.name, onProgress)
+    const text = await extractPdfPageWithOcr(
+      pdf,
+      pageNumber,
+      file.name,
+      signature,
+      ocrLanguage,
+      onProgress,
+    )
     ocrChunks.push(`Page ${pageNumber}\n${text}`)
   }
 
@@ -830,8 +859,14 @@ async function extractPdfPageWithOcr(
   pdf: PdfDocumentLike,
   pageNumber: number,
   fileName: string,
+  signature: string,
+  ocrLanguage: string,
   onProgress: ProgressCallback,
 ) {
+  const cacheKey = `pdf:${signature}:${ocrLanguage}:${pageNumber}`
+  const cached = ocrTextCache.get(cacheKey)
+  if (cached !== undefined) return cached
+
   const page = await pdf.getPage(pageNumber)
   if (!page || typeof page !== 'object') return ''
   if (!('getViewport' in page) || !('render' in page)) return ''
@@ -865,7 +900,7 @@ async function extractPdfPageWithOcr(
   await promise
 
   const { recognize } = await import('tesseract.js')
-  const result = await recognize(canvas, 'eng', {
+  const result = await recognize(canvas, ocrLanguage, {
     logger: (message) => {
       if (message.status === 'recognizing text') {
         const pageBase = (pageNumber - 1) / Math.max(pdf.numPages, 1)
@@ -881,12 +916,20 @@ async function extractPdfPageWithOcr(
     },
   })
 
-  return result.data.text
+  const text = result.data.text
+  ocrTextCache.set(cacheKey, text)
+  return text
 }
 
-async function extractImageText(file: File, onProgress: ProgressCallback) {
+async function extractImageText(file: File, onProgress: ProgressCallback, options: ExtractionOptions) {
+  const signature = fileSignature(file)
+  const ocrLanguage = normalizeOcrLanguage(options.ocrLanguage)
+  const cacheKey = `img:${signature}:${ocrLanguage}`
+  const cached = ocrTextCache.get(cacheKey)
+  if (cached !== undefined) return cached
+
   const { recognize } = await import('tesseract.js')
-  const result = await recognize(file, 'eng', {
+  const result = await recognize(file, ocrLanguage, {
     logger: (message) => {
       if (message.status === 'recognizing text') {
         onProgress({
@@ -899,7 +942,9 @@ async function extractImageText(file: File, onProgress: ProgressCallback) {
     },
   })
 
-  return result.data.text
+  const text = result.data.text
+  ocrTextCache.set(cacheKey, text)
+  return text
 }
 
 async function extractDocxText(file: File) {
