@@ -591,6 +591,32 @@ h3 {
   font-size: 13px;
 }
 
+.ocr-cache-row {
+  flex: 1 1 100%;
+  justify-content: space-between;
+}
+
+.ocr-cache-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.link-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--mint);
+  font: inherit;
+  font-weight: 740;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .progress-panel {
   display: grid;
   grid-template-columns: 1fr auto;

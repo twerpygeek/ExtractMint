@@ -1,3 +1,5 @@
+import { getPersistentOcrText, setPersistentOcrText } from './ocrCache'
+
 export type ProgressStage =
   | 'ready'
   | 'reading'
@@ -79,6 +81,7 @@ type ProgressCallback = (event: ProgressEvent) => void
 export type ExtractionOptions = {
   forceOcr?: boolean
   ocrLanguage?: string
+  persistOcrCache?: boolean
 }
 
 const datePattern =
@@ -1119,6 +1122,7 @@ async function extractPdfText(file: File, onProgress: ProgressCallback, options:
       file.name,
       signature,
       ocrLanguage,
+      options.persistOcrCache === true,
       onProgress,
     )
     ocrChunks.push(`Page ${pageNumber}\n${text}`)
@@ -1135,11 +1139,19 @@ async function extractPdfPageWithOcr(
   fileName: string,
   signature: string,
   ocrLanguage: string,
+  persistOcrCache: boolean,
   onProgress: ProgressCallback,
 ) {
   const cacheKey = `pdf:${signature}:${ocrLanguage}:${pageNumber}`
   const cached = ocrTextCache.get(cacheKey)
   if (cached !== undefined) return cached
+  if (persistOcrCache) {
+    const persistent = await getPersistentOcrText(cacheKey)
+    if (persistent !== undefined) {
+      ocrTextCache.set(cacheKey, persistent)
+      return persistent
+    }
+  }
 
   const page = await pdf.getPage(pageNumber)
   if (!page || typeof page !== 'object') return ''
@@ -1192,6 +1204,7 @@ async function extractPdfPageWithOcr(
 
   const text = result.data.text
   ocrTextCache.set(cacheKey, text)
+  if (persistOcrCache) void setPersistentOcrText(cacheKey, text)
   return text
 }
 
@@ -1201,6 +1214,13 @@ async function extractImageText(file: File, onProgress: ProgressCallback, option
   const cacheKey = `img:${signature}:${ocrLanguage}`
   const cached = ocrTextCache.get(cacheKey)
   if (cached !== undefined) return cached
+  if (options.persistOcrCache === true) {
+    const persistent = await getPersistentOcrText(cacheKey)
+    if (persistent !== undefined) {
+      ocrTextCache.set(cacheKey, persistent)
+      return persistent
+    }
+  }
 
   const { recognize } = await import('tesseract.js')
   const result = await recognize(file, ocrLanguage, {
@@ -1218,6 +1238,7 @@ async function extractImageText(file: File, onProgress: ProgressCallback, option
 
   const text = result.data.text
   ocrTextCache.set(cacheKey, text)
+  if (options.persistOcrCache === true) void setPersistentOcrText(cacheKey, text)
   return text
 }
 

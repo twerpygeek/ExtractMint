@@ -17,9 +17,10 @@ import {
   Table2,
   UploadCloud,
 } from 'lucide-react'
-import { type DragEvent, useMemo, useRef, useState } from 'react'
+import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import type { ConversionResult, ProgressEvent, ValidationSummary } from './lib/converter'
+import { clearPersistentOcrCache, getPersistentOcrCacheStats } from './lib/ocrCache'
 import { getConverterIfLoaded, loadConverter } from './lib/converterLoader'
 
 const storedValue = (key: string) => {
@@ -194,6 +195,8 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [forceOcr, setForceOcr] = useState(() => storedValue('extractmint.forceOcr') === '1')
   const [ocrLanguage, setOcrLanguage] = useState(() => storedValue('extractmint.ocrLanguage') || 'eng')
+  const [persistOcrCache, setPersistOcrCache] = useState(() => storedValue('extractmint.persistOcrCache') !== '0')
+  const [ocrCacheStats, setOcrCacheStats] = useState<{ entries: number; bytes: number }>({ entries: 0, bytes: 0 })
   const [progress, setProgress] = useState<ProgressEvent>({
     fileName: 'sample-bank-statement.pdf',
     stage: 'ready',
@@ -202,6 +205,18 @@ function App() {
   })
 
   const activeResult = results[activeIndex] ?? results[0]
+
+  const refreshOcrCacheStats = () => {
+    if (!persistOcrCache) return
+    void (async () => {
+      setOcrCacheStats(await getPersistentOcrCacheStats())
+    })()
+  }
+
+  useEffect(() => {
+    refreshOcrCacheStats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistOcrCache])
 
   const statementPeriodLabel = (period?: ConversionResult['statementPeriod']) => {
     if (!period?.start && !period?.end) return '—'
@@ -359,11 +374,13 @@ function App() {
           : await converter.convertFiles(normalFiles, setProgress, {
               forceOcr,
               ocrLanguage,
+              persistOcrCache,
             })
 
       const combined = [...imported, ...converted]
       if (combined.length === 0) return
       setResults(combined)
+      refreshOcrCacheStats()
       setProgress({
         fileName: combined.length === 1 ? combined[0].fileName : `${combined.length} files`,
         stage: 'complete',
@@ -728,6 +745,35 @@ function App() {
                   <option value="ind">Indonesian</option>
                   <option value="chi_sim">Chinese (Simplified)</option>
                 </select>
+              </label>
+              <label className="ocr-cache-row">
+                <input
+                  type="checkbox"
+                  checked={persistOcrCache}
+                  onChange={(event) => {
+                    const next = event.target.checked
+                    setPersistOcrCache(next)
+                    storeValue('extractmint.persistOcrCache', next ? '1' : '0')
+                  }}
+                />
+                Persist OCR cache (faster repeat exports)
+                {persistOcrCache ? (
+                  <span className="ocr-cache-meta">
+                    {ocrCacheStats.entries} saved · {Math.round(ocrCacheStats.bytes / 1024)} KB
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => {
+                        void (async () => {
+                          await clearPersistentOcrCache()
+                          refreshOcrCacheStats()
+                        })()
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </span>
+                ) : null}
               </label>
             </div>
 
