@@ -19,24 +19,8 @@ import {
 } from 'lucide-react'
 import { type DragEvent, useMemo, useRef, useState } from 'react'
 import './App.css'
-import {
-  convertFiles,
-  createCombinedExcelBlob,
-  createCsvBlob,
-  createDocxBlob,
-  createExcelBlob,
-  createPdfBlob,
-  createQboBlob,
-  createReviewJsonBlob,
-  createReviewPackZipBlob,
-  createSampleResult,
-  importReviewJson,
-  refreshStatementPeriod,
-  revalidateRows,
-  type ConversionResult,
-  type ProgressEvent,
-  type ValidationSummary,
-} from './lib/converter'
+import type { ConversionResult, ProgressEvent, ValidationSummary } from './lib/converter'
+import { getConverterIfLoaded, loadConverter } from './lib/converterLoader'
 
 const storedValue = (key: string) => {
   if (typeof window === 'undefined') return null
@@ -125,9 +109,83 @@ const faqItems = [
   },
 ]
 
+const createSampleResultLite = (): ConversionResult => ({
+  fileName: 'sample-bank-statement.pdf',
+  fileType: 'application/pdf',
+  currencyCode: 'USD',
+  statementPeriod: {
+    start: '2026-04-01',
+    end: '2026-04-30',
+    source: 'inferred',
+  },
+  fileMeta: {
+    size: 0,
+    lastModified: Date.now(),
+    sha256: 'sample',
+  },
+  rawText: 'Sample statement preview (conversion runs after upload).',
+  rows: [
+    {
+      date: '2026-04-02',
+      description: 'STRIPE PAYOUT INV-1082',
+      deposit: 8420,
+      amount: 8420,
+      balance: 24991.2,
+      reference: 'INV-1082',
+      category: 'Income',
+      confidence: 0.93,
+      source: 'sample',
+    },
+    {
+      date: '2026-04-05',
+      description: 'AWS CLOUD SERVICES',
+      withdrawal: 842.1,
+      amount: -842.1,
+      balance: 24149.1,
+      reference: '',
+      category: 'Expense',
+      confidence: 0.92,
+      source: 'sample',
+    },
+    {
+      date: '2026-04-08',
+      description: 'CLIENT ACME RETAINER',
+      deposit: 12500,
+      amount: 12500,
+      balance: 36649.1,
+      reference: '',
+      category: 'Income',
+      confidence: 0.93,
+      source: 'sample',
+    },
+  ],
+  confidence: 92,
+  validation: {
+    status: 'review',
+    checkedRows: 2,
+    issueCount: 1,
+    openingBalance: undefined,
+    closingBalance: 38268.1,
+    issues: [
+      {
+        severity: 'info',
+        message: 'Upload a real statement to validate the full running balance trail.',
+      },
+    ],
+  },
+  processedAt: new Date().toISOString(),
+  summary: {
+    title: 'Sample statement',
+    documentKind: 'Bank statement',
+    total: 0,
+    vendor: 'ExtractMint',
+    notes: ['Sample preview only. Upload a file to run extraction.'],
+  },
+})
+
 function App() {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [results, setResults] = useState<ConversionResult[]>([createSampleResult()])
+  const [results, setResults] = useState<ConversionResult[]>([createSampleResultLite()])
   const [activeIndex, setActiveIndex] = useState(0)
   const [showAllRows, setShowAllRows] = useState(false)
   const [onlyIssues, setOnlyIssues] = useState(false)
@@ -215,13 +273,18 @@ function App() {
 
       nextRows[rowIndex] = nextRow
 
-      const nextValidation = revalidateRows(nextRows, target.currencyCode || 'USD')
+      const converter = getConverterIfLoaded()
+      const nextValidation = converter
+        ? converter.revalidateRows(nextRows, target.currencyCode || 'USD')
+        : target.validation
       const nextResults = [...previous]
       nextResults[resultIndex] = {
         ...target,
         rows: nextRows,
         validation: nextValidation,
-        statementPeriod: refreshStatementPeriod(nextRows, target.statementPeriod),
+        statementPeriod: converter
+          ? converter.refreshStatementPeriod(nextRows, target.statementPeriod)
+          : target.statementPeriod,
       }
       return nextResults
     })
@@ -260,6 +323,7 @@ function App() {
     const files = Array.from(fileList)
     if (files.length === 0) return
 
+    const converter = await loadConverter()
     const reviewJsonFiles = files.filter((file) =>
       file.name.toLowerCase().endsWith('.extractmint-review.json'),
     )
@@ -280,7 +344,7 @@ function App() {
           detail: 'Importing ExtractMint review JSON',
         })
         try {
-          imported.push(await importReviewJson(file))
+          imported.push(await converter.importReviewJson(file))
         } catch (error) {
           throw new Error(
             `Failed to import ${file.name}: ${error instanceof Error ? error.message : 'Invalid JSON'}`,
@@ -292,7 +356,7 @@ function App() {
       const converted =
         normalFiles.length === 0
           ? []
-          : await convertFiles(normalFiles, setProgress, {
+          : await converter.convertFiles(normalFiles, setProgress, {
               forceOcr,
               ocrLanguage,
             })
@@ -327,12 +391,13 @@ function App() {
   const downloadBlob = async (format: 'xlsx' | 'csv' | 'docx' | 'pdf' | 'qbo') => {
     if (!activeResult) return
 
+    const converter = await loadConverter()
     const creators = {
-      xlsx: createExcelBlob,
-      csv: createCsvBlob,
-      docx: createDocxBlob,
-      pdf: createPdfBlob,
-      qbo: createQboBlob,
+      xlsx: converter.createExcelBlob,
+      csv: converter.createCsvBlob,
+      docx: converter.createDocxBlob,
+      pdf: converter.createPdfBlob,
+      qbo: converter.createQboBlob,
     }
     const blob = await creators[format](activeResult)
     const url = URL.createObjectURL(blob)
@@ -346,14 +411,17 @@ function App() {
 
   const downloadReviewJson = () => {
     if (!activeResult) return
-    const blob = createReviewJsonBlob(activeResult)
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    const baseName = activeResult.fileName.replace(/\.[^.]+$/, '') || 'extractmint'
-    anchor.href = url
-    anchor.download = `${baseName}.extractmint-review.json`
-    anchor.click()
-    URL.revokeObjectURL(url)
+    void (async () => {
+      const converter = await loadConverter()
+      const blob = converter.createReviewJsonBlob(activeResult)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const baseName = activeResult.fileName.replace(/\.[^.]+$/, '') || 'extractmint'
+      anchor.href = url
+      anchor.download = `${baseName}.extractmint-review.json`
+      anchor.click()
+      URL.revokeObjectURL(url)
+    })()
   }
 
   const downloadReviewPack = async () => {
@@ -366,7 +434,8 @@ function App() {
       detail: 'Building review pack ZIP',
     })
     try {
-      const blob = await createReviewPackZipBlob(results)
+      const converter = await loadConverter()
+      const blob = await converter.createReviewPackZipBlob(results)
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       const stamp = new Date().toISOString().slice(0, 10)
@@ -402,7 +471,8 @@ function App() {
       detail: 'Building combined workbook',
     })
     try {
-      const blob = await createCombinedExcelBlob(results)
+      const converter = await loadConverter()
+      const blob = await converter.createCombinedExcelBlob(results)
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       const stamp = new Date().toISOString().slice(0, 10)
